@@ -1,0 +1,12 @@
+if TARGET_ASTRIAL_H15
+
+config SYS_BOARD
+	default "astrial-h15"
+
+config SYS_VENDOR
+	default "sysele"
+
+config SYS_CONFIG_NAME
+	default "astrial-h15"
+
+endif

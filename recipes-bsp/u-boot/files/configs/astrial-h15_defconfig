@@ -1,0 +1,5 @@
+CONFIG_ARM=y
+CONFIG_ARCH_HAILO=y
+CONFIG_TARGET_ASTRIAL_H15=y
+CONFIG_DEFAULT_DEVICE_TREE="astrial-h15"
+# Add any additional configuration options you need
