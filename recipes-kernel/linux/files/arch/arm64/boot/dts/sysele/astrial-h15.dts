@@ -14,19 +14,6 @@
     };
 };
 
-&i2c_1 {
-    gyro_lsm6dsr_1: lsm6dsr_1@6b {
-        compatible = "st,lsm6dsr";
-        reg = <0x6b>;
-        vdd-supply = <&regulator_1p8v>;
-        vddio-supply = <&regulator_1p8v>;
-        interrupt-parent = <&gpio1>;
-        interrupts = <14 IRQ_TYPE_EDGE_RISING>;
-        pinctrl-names = "default";
-        pinctrl-0 = <&pinctrl_gpio30>;
-	};
-};
-
 &i2c_0 {
     status = "ok";
 
@@ -38,8 +25,6 @@
         clock-names = "inclk";
         clock-frequency = <24000000>;
         csi-id = <0>;
-        reset-gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>;
-        xmaster-gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
         port {
             sensor_out_csi2rx: endpoint {
                 data-lanes = <1 2 3 4>;
@@ -47,7 +32,47 @@
 		        link-frequencies = /bits/ 64 <891000000 1440000000 1782000000>;
             };
         };
-     };     
+     };
+};
+
+&i2c_1 {
+    status = "ok";
+    ina231_1v8: 1v8@40 {
+        compatible = "ti,ina231_precise";
+        reg = <0x40>;
+        shunt-resistor = <100000>;
+        max-current = <260>;
+    };
+    ina231_DDR_VDDQX: DDR_VDDQX@42 {
+        compatible = "ti,ina231_precise";
+        reg = <0x42>;
+        shunt-resistor = <100000>;
+        max-current = <170>;
+    };
+    ina231_0v8: 0v8@43 {
+        compatible = "ti,ina231_precise";
+        reg = <0x43>;
+        shunt-resistor = <1000>;
+        max-current = <11755>;
+    };
+
+    tmp175_NEAR_H15_SOC: NEAR_H15_SOC@2c {
+        compatible = "ti,tmp175";
+        reg = <0x2c>;
+    };
+
+    codec_tlv320aic3104: tlv320aic3104@18 {
+        #sound-dai-cells = <0>;
+        compatible = "ti,tlv320aic3104";
+        reg = <0x18>;
+        ai3x-source-clk = "bclk";
+        ai3x-micbias-vg = <2>;
+		/* Regulators */
+		AVDD-supply = <&regulator_3p3v>;
+		IOVDD-supply = <&regulator_1p8v>;
+		DRVDD-supply = <&regulator_3p3v>;
+		DVDD-supply = <&regulator_1p8v>;
+    };
 };
 
 &csi2rx0 {
@@ -164,6 +189,50 @@
     tx-sample-pace = <63>;
 };
 
+&audio_card_master {
+    status = "ok";
+    simple-audio-card,bitclock-master = <&cpu_dai_master>;
+    simple-audio-card,frame-master = <&cpu_dai_master>;
+
+    cpu_dai_master: simple-audio-card,cpu {
+        sound-dai = <&i2s_cpu_master>;
+        system-clock-frequency = <1562500>;
+        system-clock-direction-out;
+    };
+    codec_dai_master: simple-audio-card,codec {
+        sound-dai = <&codec_tlv320aic3104>;
+        system-clock-frequency = <1562500>;
+    };
+};
+
+&audio_card_slave_tx {
+    simple-audio-card,bitclock-master = <&codec_dai_tx>;
+    simple-audio-card,frame-master = <&codec_dai_tx>;
+
+    cpu_dai_tx: simple-audio-card,cpu {
+        sound-dai = <&i2s_cpu_slave_tx>;
+        system-clock-frequency = <12288000>;
+    };
+    codec_dai_tx: simple-audio-card,codec {
+        sound-dai = <&codec_tlv320aic3104>;
+        system-clock-frequency = <12288000>;
+    };
+};
+
+&audio_card_slave_rx {
+    simple-audio-card,bitclock-master = <&codec_dai_rx>;
+    simple-audio-card,frame-master = <&codec_dai_rx>;
+
+    cpu_dai_rx: simple-audio-card,cpu {
+        sound-dai = <&i2s_cpu_slave_rx>;
+        system-clock-frequency = <12288000>;
+    };
+    codec_dai_rx: simple-audio-card,codec {
+        sound-dai = <&codec_tlv320aic3104>;
+        system-clock-frequency = <12288000>;
+    };
+};
+
 / {
     sensor_clk: sensor_clk {
         compatible = "fixed-clock";
@@ -208,25 +277,9 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_gpio21>;
 	};
-	
-    lcd@45 {
-        status = "okay";
-        compatible = "raspberrypi,10inch-touchscreen-panel";
-        reg = <0x45>;
-        port {
-            panel_in: endpoint {
-                remote-endpoint = <&dsi0_out>;
-            };
-        };
-    };
 };
 
 &pinctrl {
-
-    pinctrl_gpio30: gpio30 {
-        function = "gpio";
-        groups = "gpio30_grp";
-    };
 
     pinctrl_eth: eth {
         pins = "eth_rgmii_tx_clk",
@@ -299,18 +352,6 @@
     };
 };
 
-&dsi0 {
-    status = "okay";
-    ports {
-        port@0 {
-            reg = <0>;
-            dsi0_out: endpoint {
-                remote-endpoint = <&panel_in>;
-            };
-        };
-    };
-};
-
 #define GPIO_LINE_NAMES \
     "SPI_CS2",                  "SPI_CS3",                  "DSI_RST",                  "CAM_TRIG", \
     "cam0_reset_n",             "cam1_reset_n",             "gpio_in_out_6",            "gpio_in_out_7", \
@@ -326,33 +367,12 @@
     gpio-ranges = <&pinctrl 0 0 16>;
 
     gpio-line-names = GPIO_LINE_NAMES;
-    
-    pin_DSI_RST {
-        gpio-hog;
-        gpios = <2 GPIO_ACTIVE_HIGH>;
-        output-high;
-        line-name = "DSI_RST";
-    };
 };
 
 &gpio1 {
     gpio-ranges = <&pinctrl 0 16 16>;
 
     gpio-line-names = GPIO_LINE_NAMES;
-
-    pin_WiFi_BT_disable_n {
-        gpio-hog;
-        gpios = <1 GPIO_ACTIVE_HIGH>;
-        output-low;
-        line-name = "WiFi_BT_disable_n";
-    };
-
-    pin_DSI_INTR {
-        gpio-hog;
-        gpios = <13 GPIO_ACTIVE_HIGH>;
-        output-low;
-        line-name = "DSI_INTR";
-    };
 };
 
 &hailo_torrent_phy {
