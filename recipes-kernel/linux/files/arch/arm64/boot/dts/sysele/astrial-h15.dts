@@ -128,12 +128,12 @@
 
 &sdio0 {
     status = "ok";
+    no-1-8-v;
     broken-cd;  // If you don't have a card detect pin
     sdhci-caps= <0 0x01000000>; // Force VOLT33 capability
     max-frequency = <50000000>; // Try limiting the frequency to 50MHz
     bus-width = <4>;           // Make sure we're using 4-bit mode
     pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_sdio0_gp_in &pinctrl_sdio0_CD_in>;
     phy-config {
         card-is-emmc = <0x0>;  // It's an SD card, not eMMC
         cmd-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
