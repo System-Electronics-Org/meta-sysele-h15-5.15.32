@@ -1,8 +1,3 @@
-# Flashing SPI Flash
-
-```
-```
-
 # How to boot Hailo-15 from a system with an empty eMMC
 
 This guide will show how to setup a Hailo-15 to boot from SPI flash, program the eMMC and then boot the complete OS.
