@@ -44,7 +44,7 @@ Create a file called program_spi_flash.sh and add the text below.
 ```bash
 #!/bin/bash
 
-uart_boot_fw_loader --serial-device-name /dev/ttyUSB0  --firmware ./build/tmp/deploy/images/hailo15-sbc/hailo15_uart_recovery_fw.bin && hailo15_spi_flash_program  --scu-bootloader ./build/tmp/deploy/images/hailo15-sbc/hailo15_scu_bl.bin  --scu-bootloader-config ./build/tmp/deploy/images/hailo15-sbc/scu_bl_cfg_a.bin  --scu-firmware ./build/tmp/deploy/images/hailo15-sbc/hailo15_scu_fw.bin  --uboot-device-tree ./build/tmp/deploy/images/hailo15-sbc/u-boot.dtb.signed  --bootloader ./build/tmp/deploy/images/hailo15-sbc/u-boot-spl.bin  --bootloader-env ./build/tmp/deploy/images/hailo15-sbc/u-boot-initial-env  --customer-certificate ./build/tmp/deploy/images/hailo15-sbc/customer_certificate.bin  --uart-load --serial-device-name /dev/ttyUSB0 --uboot-tfa ./build/tmp/deploy/images/hailo15-sbc/u-boot-tfa.itb
+uart_boot_fw_loader --serial-device-name /dev/ttyUSB0  --firmware ./build/tmp/deploy/images/astrial-h15/hailo15_uart_recovery_fw.bin && hailo15_spi_flash_program  --scu-bootloader ./build/tmp/deploy/images/astrial-h15/hailo15_scu_bl.bin  --scu-bootloader-config ./build/tmp/deploy/images/astrial-h15/scu_bl_cfg_a.bin  --scu-firmware ./build/tmp/deploy/images/astrial-h15/hailo15_scu_fw.bin  --uboot-device-tree ./build/tmp/deploy/images/astrial-h15/u-boot.dtb.signed  --bootloader ./build/tmp/deploy/images/astrial-h15/u-boot-spl.bin  --bootloader-env ./build/tmp/deploy/images/astrial-h15/u-boot-initial-env  --customer-certificate ./build/tmp/deploy/images/astrial-h15/customer_certificate.bin  --uart-load --serial-device-name /dev/ttyUSB0 --uboot-tfa ./build/tmp/deploy/images/astrial-h15/u-boot-tfa.itb
 ```
 
 ## Program QSPI flash
@@ -129,6 +129,16 @@ Boot the EVB.
 
   Press UP/DOWN to move, ENTER to select, ESC/CTRL+C to quit
 ```
+
+From the U-Boot console run
+
+```
+setenv boot_mmc 'run bootargs_base bootargs_mmc && run load_fitimage_from_mmc && bootm ${far_ram_addr}#conf-sysele_${machine_name}.dtb${dtb_overlays}'
+setenv machine_name astrial-h15
+setenv core_image_name core-image-hailo-dev
+saveenv
+```
+
 In case of timeout
 
 ```bash
