@@ -11,10 +11,7 @@ SRC_URI += " \
     file://configs/astrial-h15_defconfig \
 "
 
-# You can specify your branch and git repository here if needed
-# BRANCH = "your-branch-name"
-# SRCREV = "your-commit-hash"
-# SRC_URI = "git://github.com/your-username/your-uboot-repo.git;protocol=https;branch=${BRANCH}"
+UBOOT_MACHINE = "astrial-h15_defconfig"
 
 do_configure:prepend() {
     # Create directories
@@ -34,4 +31,3 @@ do_configure:prepend() {
     # Copy defconfig
     cp ${WORKDIR}/configs/astrial-h15_defconfig ${S}/configs/
 }
-
