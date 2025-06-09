@@ -410,6 +410,40 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_gpio21>;
 	};	
+	
+    lcd@45 {
+        status = "ok";
+        compatible = "raspberrypi,7inch-touchscreen-panel";
+        reg = <0x45>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm1>;        	
+        port {
+            panel_in: endpoint {
+                remote-endpoint = <&dsi0_out>;
+            };
+        };
+    };	
+};
+
+&dpi0 {
+    status = "ok";
+};
+
+&dphy0 {
+    status = "ok";
+};
+
+
+&dsi0 {
+    status = "ok";
+    ports {
+        port@0 {
+            reg = <0>;
+            dsi0_out: endpoint {
+                remote-endpoint = <&panel_in>;
+            };
+        };
+    };
 };
 
 &pinctrl {
@@ -422,6 +456,11 @@
                "eth_rgmii_txd_2",
                "eth_rgmii_txd_3";
         drive-strength = <2>;
+    };
+    
+    pinctrl_pwm1: pwm1 {
+        function = "pwm1";
+        groups = "pwm1_grp";
     };
 
     pinctrl_i2c2: i2c2 {

@@ -6,6 +6,7 @@ LINUX_YOCTO_HAILO_BOARD_VENDOR = "sysele"
 SRC_URI += " \
     file://arch/arm64/boot/dts/sysele/astrial-h15.dts \
     file://arch/arm64/boot/dts/sysele/Makefile \
+    file://hailo15-cpld-pinctrl-fix.patch \
 "
 
 do_configure:prepend() {

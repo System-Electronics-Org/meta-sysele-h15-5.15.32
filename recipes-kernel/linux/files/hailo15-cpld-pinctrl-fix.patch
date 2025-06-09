@@ -1,0 +1,12 @@
+--- a/drivers/pinctrl/hailo/pinctrl-hailo15-cpld.c	2025-03-26 14:53:55.579574049 +0100
++++ b/drivers/pinctrl/hailo/pinctrl-hailo15-cpld.c	2025-06-03 12:03:59.161579964 +0200
+@@ -191,6 +191,9 @@
+ 	ret = pinctrl_hailo15_cpld_i2c_write(pinctrl->pinctrl_cpld_i2c_client,
+ 					     H15_CPLD__BOARD_CONFIG,
+ 					     pinctrl->board_config);
++	ret = pinctrl_hailo15_cpld_i2c_write(pinctrl->pinctrl_cpld_i2c_client,
++					     0x18,
++					     0x4);					     
+ 	return ret;
+ }
+
