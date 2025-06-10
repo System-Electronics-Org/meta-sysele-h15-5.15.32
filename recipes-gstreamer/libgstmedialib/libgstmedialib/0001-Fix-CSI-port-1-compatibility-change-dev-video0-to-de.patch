@@ -1,0 +1,23 @@
+From d992e1f3447e78ae96d4fdf25b2fa573bd2f784b Mon Sep 17 00:00:00 2001
+From: Roberto Viola <roberto.viola@systemelectronics.com>
+Date: Tue, 10 Jun 2025 10:11:43 +0200
+Subject: [PATCH] Fix CSI port 1 compatibility: change /dev/video0 to
+ /dev/video4
+
+---
+ gst/frontend/gsthailofrontendbinsrc.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gst/frontend/gsthailofrontendbinsrc.cpp b/gst/frontend/gsthailofrontendbinsrc.cpp
+index d2d5e42..050a25a 100644
+--- a/gst/frontend/gsthailofrontendbinsrc.cpp
++++ b/gst/frontend/gsthailofrontendbinsrc.cpp
+@@ -165,7 +165,7 @@ static void gst_hailofrontendbinsrc_init(GstHailoFrontendBinSrc *hailofrontendbi
+     {
+         GST_ELEMENT_ERROR(hailofrontendbinsrc, RESOURCE, FAILED, ("Failed creating v4l2src element in bin!"), (NULL));
+     }
+-    g_object_set(hailofrontendbinsrc->params->m_v4l2src, "device", "/dev/video0", NULL);
++    g_object_set(hailofrontendbinsrc->params->m_v4l2src, "device", "/dev/video4", NULL);
+     g_object_set(hailofrontendbinsrc->params->m_v4l2src, "io-mode", 4, NULL);
+ 
+     // caps
