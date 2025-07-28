@@ -14,7 +14,8 @@
     /* Try all boot options by order */ \
     "bootmenu_0=Autodetect=" \
         "if test \"${auto_uboot_update_enable}\" = \"yes\"; then run auto_uboot_update; exit 1; fi; " \
-        "echo Trying Boot from SD; run boot_mmc1;" \
+        "echo Trying Boot from eMMC; run boot_mmc1;" \
+        "echo Trying Boot from SD Card; run boot_mmc0;" \
         "echo Trying Boot from NFS; run bootnfs;" \
         "echo ERROR: All boot options failed\0" \
     "bootmenu_1=Boot from SD Card=run boot_mmc0\0" \
