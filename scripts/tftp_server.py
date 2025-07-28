@@ -98,9 +98,22 @@ def main():
     
     # List available .wic files
     wic_files = list(Path(build_dir).glob("*.wic"))
+    expected_filename = "core-image-hailo-dev-astrial-h15.wic"
+    
     if wic_files:
         for wic_file in wic_files:
             print(f"  - {wic_file.name}")
+            
+        # Check if we have the expected filename, if not create a symlink
+        expected_path = Path(build_dir) / expected_filename
+        if not expected_path.exists() and wic_files:
+            # Use the first .wic file found
+            source_file = wic_files[0]
+            try:
+                os.symlink(source_file.name, expected_path)
+                print(f"  - Created symlink: {expected_filename} -> {source_file.name}")
+            except OSError as e:
+                print(f"  - Warning: Could not create symlink {expected_filename}: {e}")
     else:
         print("  - No .wic files found")
         print("  - Make sure you have built the image: bitbake core-image-hailo-dev")

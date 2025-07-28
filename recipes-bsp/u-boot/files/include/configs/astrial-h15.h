@@ -25,7 +25,9 @@
     "bootmenu_5=Update SD (partitions) from TFTP=run update_partitions_mmc1 && bootmenu -1\0" \
     "bootmenu_6=Boot from NFS=run bootnfs\0" \
     "default_spl_boot_source=nor\0" \
-    "spl_boot_source=nor\0"
+    "spl_boot_source=nor\0" \
+    "core_image_name=core-image-hailo-dev\0" \
+    "board=astrial-h15\0"
 
 #ifdef CONFIG_HAILO15_SWUPDATE
 #define SWUPDATE_BOOTMENU_OPTION "bootmenu_5=SWUpdate=run boot_swupdate_mmc\0" \
