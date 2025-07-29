@@ -215,6 +215,9 @@ Connect an FTDI USB-to-serial adapter with the following pin connections:
 
 **Note**: Refer to your specific carrier board documentation for GPIO pinout confirmation. The pin numbers reference the standard 40-pin GPIO header layout.
 
+**⚠️ Important GPIO Voltage Settings:**
+- **MIPI/CSI Display**: When connecting displays to MIPI/CSI interfaces, the carrier board's **GPIO voltage must be set to 3.3V**
+
 3. **Network Connection**
 
 **[PHOTO PLACEHOLDER: Ethernet cable connection to carrier board]**
@@ -521,6 +524,7 @@ df -h
 - Verify USB-to-serial driver installation
 - Check device path (`/dev/ttyUSB0` or similar)
 - Ensure correct baud rate (115200)
+- **Troubleshooting**: If no serial output appears, try setting the carrier board's GPIO voltage to 1.8V
 
 #### TFTP Transfer Failures
 
