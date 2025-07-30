@@ -56,7 +56,7 @@ The **Astrial H15** is a professional development board based on the Hailo-15 AI
 
 The board features configuration DIP switches for different boot modes:
 
-![DIP SWITCHES]("docs/images/dip switches.png")
+![DIP SWITCHES](docs/images/dip_switches.png)
 
 | Mode | Switch 1 | Switch 2 | Description |
 |------|----------|----------|-------------|
