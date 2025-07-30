@@ -220,15 +220,11 @@ Connect an FTDI USB-to-serial adapter with the following pin connections:
 
 3. **Network Connection**
 
-**[PHOTO PLACEHOLDER: Ethernet cable connection to carrier board]**
-
 Connect an Ethernet cable between your host computer and the Ethernet port on your carrier board.
 
 **For Waveshare CM5 PoE Base-A**: Use the onboard Gigabit Ethernet port or PoE functionality.
 
 4. **Power Connection**
-
-**[PHOTO PLACEHOLDER: Power connection to carrier board]**
 
 Connect power to your carrier board according to the carrier manufacturer's specifications.
 
