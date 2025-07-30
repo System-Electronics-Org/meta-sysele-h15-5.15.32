@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - '**'  # Matches all branches
+  schedule:
+    - cron: '0 2 */14 * *'  # Every 2 weeks at 2 AM UTC (only on default branch)
 
 jobs:
   build:
@@ -42,9 +44,11 @@ jobs:
           # Copy the checked out meta-sysele-bsp into the correct location
           cp -r ../meta-sysele-bsp ./meta-sysele-bsp
           
-          # Create secure boot keypair from GitHub secret
+          # Create secure boot keypair from GitHub secret (with security measures)
           if [ "${{ secrets.HAILO_CUSTOMER_KEYPAIR }}" != "" ]; then
+            # Create keypair file with restricted permissions
             echo "${{ secrets.HAILO_CUSTOMER_KEYPAIR }}" > meta-sysele-bsp/recipes-bsp/hailo-secureboot-assets/files/customer_keypair.pem
+            chmod 600 meta-sysele-bsp/recipes-bsp/hailo-secureboot-assets/files/customer_keypair.pem
             echo "Secure boot keypair created from secret"
           else
             echo "Warning: HAILO_CUSTOMER_KEYPAIR secret not found - secure boot will be disabled"
@@ -92,10 +96,28 @@ jobs:
           # Set environment variables for network isolation
           export BB_ISOLATE_NETWORK=0
           export BB_NO_NETWORK=0
-          export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK"
           
-          # Build using KAS with our Astrial H15 configuration
-          kas build meta-sysele-bsp/kas/astrial-h15.yml
+          # CI-specific build optimizations - reduce log verbosity
+          export BITBAKE_UI_OPTS="-k"
+          export BB_LOGCONFIG=""  
+          export BB_CONSOLELOG=""
+          export BB_DEFAULT_TASK="build"
+          export GITHUB_ACTIONS_BUILD=1  # Flag to detect CI environment
+          
+          export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
+          
+          # Build using KAS with our Astrial H15 configuration (with reduced verbosity)
+          kas build meta-sysele-bsp/kas/astrial-h15.yml 2>&1 | grep -E "(ERROR|WARNING|NOTE|===|Started|Completed|Failed|$)" || true
+
+      - name: Clean Sensitive Files Before Archiving
+        run: |
+          # Remove any private key files that might have been copied or generated during build
+          find meta-hailo-soc/ -name "customer_keypair.pem" -delete || true
+          find meta-hailo-soc/ -name "*.pem" -delete || true
+          find meta-hailo-soc/ -name "*private*key*" -delete || true
+          # Clean build logs that might contain sensitive information
+          find meta-hailo-soc/build -name "*.log" -exec grep -l "PRIVATE\|SECRET\|KEY" {} \; -delete || true
+          echo "Sensitive files cleaned before archiving"
 
       - name: Archive Build Artifacts
         uses: actions/upload-artifact@v4

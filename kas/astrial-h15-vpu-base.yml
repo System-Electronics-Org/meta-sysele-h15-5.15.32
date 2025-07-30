@@ -19,7 +19,7 @@ local_conf_header:
 repos:
   meta-hailo:
     url: "https://github.com/hailo-ai/meta-hailo.git"
-    refspec: kirkstone
+    refspec: 3a2665df39d1464e1808b5c95a8ce44994fae8b5  # Lock to working commit (v3.31.0)
     layers:
       meta-hailo-libhailort:
       meta-hailo-vpu:
