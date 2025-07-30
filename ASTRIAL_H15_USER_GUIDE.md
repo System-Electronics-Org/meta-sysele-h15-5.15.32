@@ -234,7 +234,7 @@ Connect power to your carrier board according to the carrier manufacturer's spec
 
 Before initial programming, configure the DIP switches for SPI programming mode:
 
-**[PHOTO PLACEHOLDER: DIP switches set to programming mode (1=ON, 2=OFF)]**
+![DIP switches set to programming mode (1=ON, 2=OFF)]](docs/images/dipswitch1on.png)
 
 - Switch 1: **ON**
 - Switch 2: **OFF**
