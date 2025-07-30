@@ -15,7 +15,4 @@ local_conf_header:
 
 repos:
   meta-sysele-bsp:
-    path: .
-    layers:
-      .: 
-        # System Electronics BSP layer
+    path: ./meta-sysele-bsp

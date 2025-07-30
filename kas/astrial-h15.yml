@@ -3,6 +3,6 @@ header:
   version: 11
   includes:
     - ../kas/yocto-base.yml
-    - ../kas/hailo15-vpu-base.yml
+    - astrial-h15-vpu-base.yml
     - ../kas/targets/hailo15-target-core-image-hailo-dev.yml
     - astrial-h15-machine.yml

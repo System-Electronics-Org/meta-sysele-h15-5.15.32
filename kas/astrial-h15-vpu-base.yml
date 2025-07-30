@@ -1,0 +1,46 @@
+header:
+  version: 11
+
+local_conf_header:
+  DSP: |
+    DSP_COMPILATION_MODE = "release"
+    DSP_FULL_IMAGING = "false"
+  gstreamer: |
+    ADD_GSTREAMER_TO_IMAGE = "true"
+  imx334_enable: |
+    MACHINE_FEATURES:append = " imx334"
+    MACHINE_FEATURES:remove = " imx678"
+  flags: |
+    LICENSE_FLAGS_ACCEPTED:append = " commercial"
+  buildhistory: |
+    INHERIT += "buildhistory"
+    BUILDHISTORY_COMMIT = "1"
+
+repos:
+  meta-hailo:
+    url: "https://github.com/hailo-ai/meta-hailo.git"
+    refspec: kirkstone
+    layers:
+      meta-hailo-libhailort:
+      meta-hailo-vpu:
+      
+  meta-hailo-dsp:
+    path: ./meta-hailo-dsp
+      
+  meta-hailo-bsp:
+    path: ./meta-hailo-bsp
+    
+  meta-hailo-bsp-examples:
+    path: ./meta-hailo-bsp-examples
+        
+  meta-hailo-imaging:
+    path: ./meta-hailo-imaging
+    
+  meta-hailo-linux:
+    path: ./meta-hailo-linux
+    
+  meta-hailo-media-library:
+    path: ./meta-hailo-media-library
+      
+  meta-hailo-tappas:
+    path: ./meta-hailo-tappas
