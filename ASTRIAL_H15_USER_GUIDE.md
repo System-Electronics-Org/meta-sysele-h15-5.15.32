@@ -198,7 +198,7 @@ DISTRO = "hailo-distro"
 
 1. **Mount SoM on Carrier Board**
 
-**[PHOTO PLACEHOLDER: Astrial H15 SoM mounted on Waveshare CM5 PoE carrier]**
+![Astrial H15 SoM mounted on Waveshare CM5 PoE carrier](docs/images/waveshare_astrialh15.jfif)
 
 Mount the Astrial H15 SoM onto your carrier board following the carrier manufacturer's installation guide.
 
