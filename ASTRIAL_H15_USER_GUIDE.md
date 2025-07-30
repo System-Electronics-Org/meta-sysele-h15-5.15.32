@@ -41,7 +41,7 @@ The **Astrial H15** is a professional development board based on the Hailo-15 AI
 
 ### Board Layout
 
-**[PHOTO PLACEHOLDER: Astrial H15 board top view with component labels]**
+![Astrial Overview](docs/images/Astrial_website_scheda2-min.jpg)
 
 ### Key Components
 
