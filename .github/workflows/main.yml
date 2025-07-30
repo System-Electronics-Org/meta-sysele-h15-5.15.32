@@ -24,6 +24,9 @@ jobs:
             python3-subunit mesa-common-dev zstd liblz4-tool file locales libacl1 \
             curl python-is-python3 bmap-tools u-boot-tools
           sudo locale-gen en_US.UTF-8
+          
+          # Install KAS
+          sudo pip3 install kas
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -72,54 +75,27 @@ jobs:
             echo "Warning: Could not find BitBake utils.py"
           fi
 
-      - name: Build Yocto Image
+      - name: Build Yocto Image with KAS
         run: |
           cd meta-hailo-soc
           
-          # Source the build environment (oe-init-build-env is in poky subdirectory)
-          source poky/oe-init-build-env build-astrial-h15
-          
-          # Configure build settings for Astrial H15
-          echo 'MACHINE = "astrial-h15"' >> conf/local.conf
-          echo 'DISTRO = "hailo-distro"' >> conf/local.conf
-          
-          # Disable network isolation for CI build
-          echo 'BB_ISOLATE_NETWORK = "0"' >> conf/local.conf
-          echo 'BB_NO_NETWORK = "0"' >> conf/local.conf
-          
-          # Configure DSP and features
-          echo 'DSP_COMPILATION_MODE = "release"' >> conf/local.conf
-          echo 'DSP_FULL_IMAGING = "false"' >> conf/local.conf
-          echo 'LICENSE_FLAGS_ACCEPTED:append = " commercial"' >> conf/local.conf
-          echo 'ADD_GSTREAMER_TO_IMAGE = "true"' >> conf/local.conf
-          echo 'HAILO_TARGET = "core-image-minimal"' >> conf/local.conf
-          echo 'DISTRO_FEATURES:append = " hailo-dev-pkg"' >> conf/local.conf
-          
-          # Configure IMX334 camera support
-          echo 'MACHINE_FEATURES:append = " imx334"' >> conf/local.conf
-          echo 'MACHINE_FEATURES:remove = " imx678"' >> conf/local.conf
-          
-          # Enable buildhistory
-          echo 'INHERIT += "buildhistory"' >> conf/local.conf
-          echo 'BUILDHISTORY_COMMIT = "1"' >> conf/local.conf
-          
-          # Run BitBake commands with network isolation disabled
+          # Set environment variables for network isolation
           export BB_ISOLATE_NETWORK=0
           export BB_NO_NETWORK=0
           export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK"
           
-          # Build the development image
-          bitbake --no-setscene -k core-image-hailo-dev
+          # Build using KAS with our Astrial H15 configuration
+          kas build meta-sysele-bsp/kas/astrial-h15.yml
 
       - name: Archive Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: astrial-h15-yocto-build
           path: |
-            meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/u-boot-initial-env-astrial-h15
-            meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic
-            meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
-            meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/core-image-minimal-astrial-h15.wic
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env-astrial-h15
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-minimal-astrial-h15.wic
           if-no-files-found: warn
 
       - name: Archive Build Logs
@@ -128,8 +104,8 @@ jobs:
         with:
           name: astrial-h15-build-logs
           path: |
-            meta-hailo-soc/build-astrial-h15/tmp/log/
-            meta-hailo-soc/build-astrial-h15/buildhistory/
+            meta-hailo-soc/build/tmp/log/
+            meta-hailo-soc/build/buildhistory/
           if-no-files-found: warn
 
       - name: Create Release Images Repository
@@ -138,5 +114,5 @@ jobs:
           # This step would create/update the Astrial-H15-images repository
           # with the built images for easy distribution
           echo "Built images are ready for distribution"
-          echo "Image artifacts saved to: meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/"
-          ls -la meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/ || true
+          echo "Image artifacts saved to: meta-hailo-soc/build/tmp/deploy/images/astrial-h15/"
+          ls -la meta-hailo-soc/build/tmp/deploy/images/astrial-h15/ || true
