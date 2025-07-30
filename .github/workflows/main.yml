@@ -25,14 +25,19 @@ jobs:
             curl python-is-python3 bmap-tools u-boot-tools
           sudo locale-gen en_US.UTF-8
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: meta-sysele-bsp
+
       - name: Setup Build Environment
         run: |
           # Clone main Hailo repository
           git clone -b 1.7.0 https://github.com/hailo-ai/meta-hailo-soc.git
           cd meta-hailo-soc
           
-          # Clone System Electronics customization layer
-          git clone https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32.git meta-sysele-bsp
+          # Copy the checked out meta-sysele-bsp into the correct location
+          cp -r ../meta-sysele-bsp ./meta-sysele-bsp
           
           # Initialize submodules
           git submodule update --init --recursive
