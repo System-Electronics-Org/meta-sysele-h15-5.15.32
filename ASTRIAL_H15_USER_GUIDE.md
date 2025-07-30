@@ -279,7 +279,7 @@ The script will automatically:
 
 After successful programming, power down the board and restore DIP switches:
 
-**[PHOTO PLACEHOLDER: DIP switches set to normal boot mode (1=OFF, 2=OFF)]**
+![DIP switches set to programming mode](docs/images/dipswitch1off.png)
 
 - Switch 1: **OFF**
 - Switch 2: **OFF**
