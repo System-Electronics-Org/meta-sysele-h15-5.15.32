@@ -76,8 +76,8 @@ jobs:
         run: |
           cd meta-hailo-soc
           
-          # Source the build environment
-          source oe-init-build-env build-astrial-h15
+          # Source the build environment (oe-init-build-env is in poky subdirectory)
+          source poky/oe-init-build-env build-astrial-h15
           
           # Configure build settings for Astrial H15
           echo 'MACHINE = "astrial-h15"' >> conf/local.conf
