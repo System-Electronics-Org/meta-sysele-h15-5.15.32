@@ -503,7 +503,7 @@ df -h
 
 #### Board Not Powering On
 
-**[PHOTO PLACEHOLDER: Power LED indicators]**
+![Power LED indicators](docs/images/powerled.png)
 
 - Verify power adapter connection according to your carrier board specifications
 - Check power LED indicators on the board
