@@ -41,7 +41,7 @@ The **Astrial H15** is a professional development board based on the Hailo-15 AI
 
 ### Board Layout
 
-**[PHOTO PLACEHOLDER: Astrial H15 board top view with component labels]**
+![Astrial Overview](docs/images/Astrial_website_scheda2-min.jpg)
 
 ### Key Components
 
@@ -56,7 +56,7 @@ The **Astrial H15** is a professional development board based on the Hailo-15 AI
 
 The board features configuration DIP switches for different boot modes:
 
-**[PHOTO PLACEHOLDER: DIP switch location and numbering]**
+![DIP SWITCHES](docs/images/dip_switches.png)
 
 | Mode | Switch 1 | Switch 2 | Description |
 |------|----------|----------|-------------|
@@ -198,13 +198,13 @@ DISTRO = "hailo-distro"
 
 1. **Mount SoM on Carrier Board**
 
-**[PHOTO PLACEHOLDER: Astrial H15 SoM mounted on Waveshare CM5 PoE carrier]**
+![Astrial H15 SoM mounted on Waveshare CM5 PoE carrier](docs/images/waveshare_astrialh15.jfif)
 
 Mount the Astrial H15 SoM onto your carrier board following the carrier manufacturer's installation guide.
 
 2. **Connect Serial Debug Cable (FTDI)**
 
-**[PHOTO PLACEHOLDER: FTDI cable connection to carrier board GPIO pins]**
+![FTDI cable connection to carrier board GPIO pins](docs/images/serial.png)
 
 Connect an FTDI USB-to-serial adapter with the following pin connections:
 
@@ -220,15 +220,11 @@ Connect an FTDI USB-to-serial adapter with the following pin connections:
 
 3. **Network Connection**
 
-**[PHOTO PLACEHOLDER: Ethernet cable connection to carrier board]**
-
 Connect an Ethernet cable between your host computer and the Ethernet port on your carrier board.
 
 **For Waveshare CM5 PoE Base-A**: Use the onboard Gigabit Ethernet port or PoE functionality.
 
 4. **Power Connection**
-
-**[PHOTO PLACEHOLDER: Power connection to carrier board]**
 
 Connect power to your carrier board according to the carrier manufacturer's specifications.
 
@@ -238,7 +234,7 @@ Connect power to your carrier board according to the carrier manufacturer's spec
 
 Before initial programming, configure the DIP switches for SPI programming mode:
 
-**[PHOTO PLACEHOLDER: DIP switches set to programming mode (1=ON, 2=OFF)]**
+![DIP switches set to programming mode](docs/images/dipswitch1on.png)
 
 - Switch 1: **ON**
 - Switch 2: **OFF**
@@ -283,7 +279,7 @@ The script will automatically:
 
 After successful programming, power down the board and restore DIP switches:
 
-**[PHOTO PLACEHOLDER: DIP switches set to normal boot mode (1=OFF, 2=OFF)]**
+![DIP switches set to programming mode](docs/images/dipswitch1off.png)
 
 - Switch 1: **OFF**
 - Switch 2: **OFF**
@@ -353,8 +349,6 @@ sudo picocom --baud 115200 /dev/ttyUSB0
 **Note**: Root privileges may be required for serial port access depending on your system configuration.
 
 3. **Power On and Access Boot Menu**
-
-**[PHOTO PLACEHOLDER: Serial terminal showing U-Boot boot menu]**
 
 Power on the board. You should see the U-Boot boot menu:
 
@@ -436,8 +430,6 @@ MMC write: dev # 1, block # 0, count 4474157 ...
 - **Do NOT interrupt**: The process may appear frozen during eMMC write - this is normal
 - **Total time**: Allow 10-15 minutes total for the complete process
 
-**[PHOTO PLACEHOLDER: Terminal showing successful eMMC programming progress]**
-
 **Note**: If you see `Filename 'fitImage'` instead of the .wic file, you selected the wrong menu option. Use `bootmenu` command to return to the menu and select option 3.
 
 ---
@@ -451,8 +443,6 @@ MMC write: dev # 1, block # 0, count 4474157 ...
 From the U-Boot menu, select "Boot from eMMC".
 
 2. **First Boot Process**
-
-**[PHOTO PLACEHOLDER: Terminal showing Linux boot sequence]**
 
 The system will boot into the Yocto Linux environment. First boot may take several minutes.
 
@@ -513,7 +503,7 @@ df -h
 
 #### Board Not Powering On
 
-**[PHOTO PLACEHOLDER: Power LED indicators]**
+![Power LED indicators](docs/images/powerled.png)
 
 - Verify power adapter connection according to your carrier board specifications
 - Check power LED indicators on the board
