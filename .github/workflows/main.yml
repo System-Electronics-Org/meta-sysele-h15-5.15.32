@@ -42,6 +42,16 @@ jobs:
           # Copy the checked out meta-sysele-bsp into the correct location
           cp -r ../meta-sysele-bsp ./meta-sysele-bsp
           
+          # Create secure boot keypair from GitHub secret
+          if [ "${{ secrets.HAILO_CUSTOMER_KEYPAIR }}" != "" ]; then
+            echo "${{ secrets.HAILO_CUSTOMER_KEYPAIR }}" > meta-sysele-bsp/recipes-bsp/hailo-secureboot-assets/files/customer_keypair.pem
+            echo "Secure boot keypair created from secret"
+          else
+            echo "Warning: HAILO_CUSTOMER_KEYPAIR secret not found - secure boot will be disabled"
+            # Create empty file to prevent build errors
+            touch meta-sysele-bsp/recipes-bsp/hailo-secureboot-assets/files/customer_keypair.pem
+          fi
+          
           # Initialize submodules
           git submodule update --init --recursive
 

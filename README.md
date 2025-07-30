@@ -126,6 +126,21 @@ Add the following line:
 SUBSYSTEM=="usb", ATTR{idVendor}=="0403", ATTR{idProduct}=="6011", GROUP="plugdev", MODE="0664"
 ```
 
+6. **Secure Boot Configuration**
+
+The Yocto build requires cryptographic keys for secure boot functionality. Create the customer keypair file:
+
+```bash
+# Navigate to the meta layer
+cd meta-sysele-bsp
+```
+
+**Note**: The `customer_keypair.pem` file is intentionally not included in the repository for security reasons. 
+
+For detailed instructions on generating and configuring secure boot keys, please refer to the **Hailo OS Secure Boot User Guide (hailo_os_secure_boot_user_guide.pdf)** available in the [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/).
+
+**Warning**: Never commit private keys to version control. Keep your cryptographic keys secure and separate from your source code.
+
 ### Option 1: Using Prebuilt Images (Quick Start)
 
 For rapid deployment without building from source, System Electronics provides prebuilt images:
