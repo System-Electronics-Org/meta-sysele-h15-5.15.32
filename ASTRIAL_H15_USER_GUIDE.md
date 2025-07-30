@@ -204,7 +204,7 @@ Mount the Astrial H15 SoM onto your carrier board following the carrier manufact
 
 2. **Connect Serial Debug Cable (FTDI)**
 
-**[PHOTO PLACEHOLDER: FTDI cable connection to carrier board GPIO pins]**
+![FTDI cable connection to carrier board GPIO pins](docs/images/serial.png)
 
 Connect an FTDI USB-to-serial adapter with the following pin connections:
 
