@@ -350,8 +350,6 @@ sudo picocom --baud 115200 /dev/ttyUSB0
 
 3. **Power On and Access Boot Menu**
 
-**[PHOTO PLACEHOLDER: Serial terminal showing U-Boot boot menu]**
-
 Power on the board. You should see the U-Boot boot menu:
 
 ```
@@ -432,8 +430,6 @@ MMC write: dev # 1, block # 0, count 4474157 ...
 - **Do NOT interrupt**: The process may appear frozen during eMMC write - this is normal
 - **Total time**: Allow 10-15 minutes total for the complete process
 
-**[PHOTO PLACEHOLDER: Terminal showing successful eMMC programming progress]**
-
 **Note**: If you see `Filename 'fitImage'` instead of the .wic file, you selected the wrong menu option. Use `bootmenu` command to return to the menu and select option 3.
 
 ---
@@ -447,8 +443,6 @@ MMC write: dev # 1, block # 0, count 4474157 ...
 From the U-Boot menu, select "Boot from eMMC".
 
 2. **First Boot Process**
-
-**[PHOTO PLACEHOLDER: Terminal showing Linux boot sequence]**
 
 The system will boot into the Yocto Linux environment. First boot may take several minutes.
 
