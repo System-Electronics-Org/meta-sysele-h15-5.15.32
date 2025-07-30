@@ -1,0 +1,137 @@
+name: Yocto Build Astrial H15
+
+on:
+  push:
+    branches:
+      - '**'  # Matches all branches
+
+jobs:
+  build:
+    runs-on: ubuntu-large-runner
+    steps:
+      - name: Install Dependencies
+        run: |
+          # Configure environment
+          echo "BB_ISOLATE_NETWORK=0" >> $GITHUB_ENV
+          echo "BB_NO_NETWORK=0" >> $GITHUB_ENV
+          
+          # Install required packages for Yocto build
+          sudo apt-get update
+          sudo apt-get upgrade -y
+          sudo apt-get install -y gawk wget git diffstat unzip texinfo gcc build-essential \
+            chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils \
+            iputils-ping python3-git python3-jinja2 libegl1 libsdl1.2-dev \
+            python3-subunit mesa-common-dev zstd liblz4-tool file locales libacl1 \
+            curl python-is-python3 bmap-tools u-boot-tools
+          sudo locale-gen en_US.UTF-8
+
+      - name: Setup Build Environment
+        run: |
+          # Clone main Hailo repository
+          git clone -b 1.7.0 https://github.com/hailo-ai/meta-hailo-soc.git
+          cd meta-hailo-soc
+          
+          # Clone System Electronics customization layer
+          git clone https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32.git meta-sysele-bsp
+          
+          # Initialize submodules
+          git submodule update --init --recursive
+
+      - name: Create Patch for BitBake Network Isolation
+        run: |
+          cd meta-hailo-soc
+          
+          # Find the BitBake worker script path
+          BB_WORKER=$(find . -name "bitbake-worker" -type f | head -n 1)
+          if [ -n "$BB_WORKER" ]; then
+            echo "Found BitBake worker at $BB_WORKER"
+            # Backup the original file
+            cp "$BB_WORKER" "$BB_WORKER.orig"
+            # Patch the file to disable network isolation
+            sed -i 's/bb.utils.disable_network(uid, gid)/# Network isolation disabled for CI build/' "$BB_WORKER"
+            echo "Patched BitBake worker successfully"
+          else
+            echo "Warning: Could not find BitBake worker script"
+          fi
+          
+          # Find the BitBake utils.py file
+          BB_UTILS=$(find . -name "utils.py" -path "*/bitbake/lib/bb/*" -type f | head -n 1)
+          if [ -n "$BB_UTILS" ]; then
+            echo "Found BitBake utils.py at $BB_UTILS"
+            # Backup the original file
+            cp "$BB_UTILS" "$BB_UTILS.orig"
+            # Patch the file to disable network isolation
+            sed -i 's/def disable_network(uid, gid):/def disable_network(uid, gid):\n    return  # Function disabled for CI build/' "$BB_UTILS"
+            echo "Patched BitBake utils.py successfully"
+          else
+            echo "Warning: Could not find BitBake utils.py"
+          fi
+
+      - name: Build Yocto Image
+        run: |
+          cd meta-hailo-soc
+          
+          # Source the build environment
+          source oe-init-build-env build-astrial-h15
+          
+          # Configure build settings for Astrial H15
+          echo 'MACHINE = "astrial-h15"' >> conf/local.conf
+          echo 'DISTRO = "hailo-distro"' >> conf/local.conf
+          
+          # Disable network isolation for CI build
+          echo 'BB_ISOLATE_NETWORK = "0"' >> conf/local.conf
+          echo 'BB_NO_NETWORK = "0"' >> conf/local.conf
+          
+          # Configure DSP and features
+          echo 'DSP_COMPILATION_MODE = "release"' >> conf/local.conf
+          echo 'DSP_FULL_IMAGING = "false"' >> conf/local.conf
+          echo 'LICENSE_FLAGS_ACCEPTED:append = " commercial"' >> conf/local.conf
+          echo 'ADD_GSTREAMER_TO_IMAGE = "true"' >> conf/local.conf
+          echo 'HAILO_TARGET = "core-image-minimal"' >> conf/local.conf
+          echo 'DISTRO_FEATURES:append = " hailo-dev-pkg"' >> conf/local.conf
+          
+          # Configure IMX334 camera support
+          echo 'MACHINE_FEATURES:append = " imx334"' >> conf/local.conf
+          echo 'MACHINE_FEATURES:remove = " imx678"' >> conf/local.conf
+          
+          # Enable buildhistory
+          echo 'INHERIT += "buildhistory"' >> conf/local.conf
+          echo 'BUILDHISTORY_COMMIT = "1"' >> conf/local.conf
+          
+          # Run BitBake commands with network isolation disabled
+          export BB_ISOLATE_NETWORK=0
+          export BB_NO_NETWORK=0
+          export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK"
+          
+          # Build the development image
+          bitbake --no-setscene -k core-image-hailo-dev
+
+      - name: Archive Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: astrial-h15-yocto-build
+          path: |
+            meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/u-boot-initial-env-astrial-h15
+            meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic
+            meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
+            meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/core-image-minimal-astrial-h15.wic
+          if-no-files-found: warn
+
+      - name: Archive Build Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: astrial-h15-build-logs
+          path: |
+            meta-hailo-soc/build-astrial-h15/tmp/log/
+            meta-hailo-soc/build-astrial-h15/buildhistory/
+          if-no-files-found: warn
+
+      - name: Create Release Images Repository
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        run: |
+          # This step would create/update the Astrial-H15-images repository
+          # with the built images for easy distribution
+          echo "Built images are ready for distribution"
+          echo "Image artifacts saved to: meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/"
+          ls -la meta-hailo-soc/build-astrial-h15/tmp/deploy/images/astrial-h15/ || true
