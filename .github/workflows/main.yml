@@ -9,7 +9,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-large-runner
+#   runs-on: ubuntu-large-runner
+    runs-on: ubuntu-22.04
     steps:
       - name: Install Dependencies
         run: |
