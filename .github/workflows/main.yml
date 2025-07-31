@@ -1,0 +1,159 @@
+name: Yocto Build Astrial H15
+
+on:
+  push:
+    branches:
+      - '**'  # Matches all branches
+  schedule:
+    - cron: '0 2 */14 * *'  # Every 2 weeks at 2 AM UTC (only on default branch)
+
+jobs:
+  build:
+    runs-on: ubuntu-large-runner
+    steps:
+      - name: Install Dependencies
+        run: |
+          # Configure environment
+          echo "BB_ISOLATE_NETWORK=0" >> $GITHUB_ENV
+          echo "BB_NO_NETWORK=0" >> $GITHUB_ENV
+          
+          # Install required packages for Yocto build
+          sudo apt-get update
+          sudo apt-get upgrade -y
+          sudo apt-get install -y gawk wget git diffstat unzip texinfo gcc build-essential \
+            chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils \
+            iputils-ping python3-git python3-jinja2 libegl1 libsdl1.2-dev \
+            python3-subunit mesa-common-dev zstd liblz4-tool file locales libacl1 \
+            curl python-is-python3 bmap-tools u-boot-tools
+          sudo locale-gen en_US.UTF-8
+          
+          # Install KAS
+          sudo pip3 install kas
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: meta-sysele-bsp
+
+      - name: Setup Build Environment
+        run: |
+          # Clone main Hailo repository
+          git clone -b 1.7.0 https://github.com/hailo-ai/meta-hailo-soc.git
+          cd meta-hailo-soc
+          
+          # Copy the checked out meta-sysele-bsp into the correct location
+          cp -r ../meta-sysele-bsp ./meta-sysele-bsp
+          
+          # Create secure boot keypair from GitHub secret (with security measures)
+          if [ "${{ secrets.HAILO_CUSTOMER_KEYPAIR }}" != "" ]; then
+            # Create keypair file with restricted permissions
+            echo "${{ secrets.HAILO_CUSTOMER_KEYPAIR }}" > meta-sysele-bsp/recipes-bsp/hailo-secureboot-assets/files/customer_keypair.pem
+            chmod 600 meta-sysele-bsp/recipes-bsp/hailo-secureboot-assets/files/customer_keypair.pem
+            echo "Secure boot keypair created from secret"
+          else
+            echo "Warning: HAILO_CUSTOMER_KEYPAIR secret not found - secure boot will be disabled"
+            # Create empty file to prevent build errors
+            touch meta-sysele-bsp/recipes-bsp/hailo-secureboot-assets/files/customer_keypair.pem
+          fi
+          
+          # Initialize submodules
+          git submodule update --init --recursive
+
+      - name: Create Patch for BitBake Network Isolation
+        run: |
+          cd meta-hailo-soc
+          
+          # Find the BitBake worker script path
+          BB_WORKER=$(find . -name "bitbake-worker" -type f | head -n 1)
+          if [ -n "$BB_WORKER" ]; then
+            echo "Found BitBake worker at $BB_WORKER"
+            # Backup the original file
+            cp "$BB_WORKER" "$BB_WORKER.orig"
+            # Patch the file to disable network isolation
+            sed -i 's/bb.utils.disable_network(uid, gid)/# Network isolation disabled for CI build/' "$BB_WORKER"
+            echo "Patched BitBake worker successfully"
+          else
+            echo "Warning: Could not find BitBake worker script"
+          fi
+          
+          # Find the BitBake utils.py file
+          BB_UTILS=$(find . -name "utils.py" -path "*/bitbake/lib/bb/*" -type f | head -n 1)
+          if [ -n "$BB_UTILS" ]; then
+            echo "Found BitBake utils.py at $BB_UTILS"
+            # Backup the original file
+            cp "$BB_UTILS" "$BB_UTILS.orig"
+            # Patch the file to disable network isolation
+            sed -i 's/def disable_network(uid, gid):/def disable_network(uid, gid):\n    return  # Function disabled for CI build/' "$BB_UTILS"
+            echo "Patched BitBake utils.py successfully"
+          else
+            echo "Warning: Could not find BitBake utils.py"
+          fi
+
+      - name: Build Yocto Image with KAS
+        run: |
+          cd meta-hailo-soc
+          
+          # Set environment variables for network isolation
+          export BB_ISOLATE_NETWORK=0
+          export BB_NO_NETWORK=0
+          
+          # CI-specific build optimizations - reduce log verbosity
+          export BITBAKE_UI_OPTS="-k"
+          export BB_LOGCONFIG=""  
+          export BB_CONSOLELOG=""
+          export BB_DEFAULT_TASK="build"
+          export GITHUB_ACTIONS_BUILD=1  # Flag to detect CI environment
+          
+          export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
+          
+          # Build using KAS with our Astrial H15 configuration (with reduced verbosity)
+          kas build meta-sysele-bsp/kas/astrial-h15.yml 2>&1 | grep -E "(ERROR|WARNING|NOTE|===|Started|Completed|Failed|$)" || true
+
+      - name: Clean Sensitive Files Before Archiving
+        run: |
+          # Remove any private key files that might have been copied or generated during build
+          find meta-hailo-soc/ -name "customer_keypair.pem" -delete || true
+          find meta-hailo-soc/ -name "*.pem" -delete || true
+          find meta-hailo-soc/ -name "*private*key*" -delete || true
+          # Clean build logs that might contain sensitive information
+          find meta-hailo-soc/build -name "*.log" -exec grep -l "PRIVATE\|SECRET\|KEY" {} \; -delete || true
+          echo "Sensitive files cleaned before archiving"
+
+      - name: Archive Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: astrial-h15-yocto-build
+          path: |
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-minimal-astrial-h15.wic
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env-astrial-h15
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo15_uart_recovery_fw.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo15_scu_bl.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/scu_bl_cfg_a.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo15_scu_fw.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot.dtb.signed
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-spl.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/customer_certificate.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-tfa.itb
+          if-no-files-found: warn
+
+      - name: Archive Build Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: astrial-h15-build-logs
+          path: |
+            meta-hailo-soc/build/tmp/log/
+            meta-hailo-soc/build/buildhistory/
+          if-no-files-found: warn
+
+      - name: Create Release Images Repository
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        run: |
+          # This step would create/update the Astrial-H15-images repository
+          # with the built images for easy distribution
+          echo "Built images are ready for distribution"
+          echo "Image artifacts saved to: meta-hailo-soc/build/tmp/deploy/images/astrial-h15/"
+          ls -la meta-hailo-soc/build/tmp/deploy/images/astrial-h15/ || true

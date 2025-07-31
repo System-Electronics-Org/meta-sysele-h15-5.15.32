@@ -148,34 +148,71 @@ The repository contains ready-to-use `.wic` files that can be directly programme
 
 ### Option 2: Building from Source
 
-### Setting Up Yocto Build Environment
+### Setting Up Yocto Build Environment with KAS
 
-1. **Clone Main Hailo Repository**
+1. **Install KAS Build Tool**
+
+```bash
+pip3 install kas
+```
+
+2. **Clone Main Hailo Repository**
 
 ```bash
 git clone -b 1.7.0 https://github.com/hailo-ai/meta-hailo-soc.git
 cd meta-hailo-soc
 ```
 
-2. **Clone System Electronics Customization Layer**
+3. **Clone System Electronics Customization Layer**
 
 ```bash
 git clone https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32.git meta-sysele-bsp
 ```
 
-3. **Initialize Submodules**
+4. **Secure Boot Configuration**
+
+The Yocto build requires cryptographic keys for secure boot functionality. Create the customer keypair file:
+
+```bash
+# Navigate to the meta layer
+cd meta-sysele-bsp
+```
+
+**Note**: The `customer_keypair.pem` file is intentionally not included in the repository for security reasons. 
+
+For detailed instructions on generating and configuring secure boot keys, please refer to the **Hailo OS Secure Boot User Guide (hailo_os_secure_boot_user_guide.pdf)** available in the [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/).
+
+**Warning**: Never commit private keys to version control. Keep your cryptographic keys secure and separate from your source code.
+
+5. **Build Using KAS**
+
+```bash
+kas build meta-sysele-bsp/kas/astrial-h15.yml
+```
+
+This single command will:
+- Initialize all required repositories and submodules
+- Configure the build environment for Astrial H15
+- Set up all necessary layers and dependencies
+- Build the complete development image
+
+### Alternative: Manual Build Environment Setup
+
+If you prefer to set up the environment manually without KAS:
+
+1. **Initialize Submodules**
 
 ```bash
 git submodule update --init --recursive
 ```
 
-4. **Initialize Build Environment**
+2. **Initialize Build Environment**
 
 ```bash
 source oe-init-build-env build-astrial-h15
 ```
 
-5. **Configure Build Settings**
+3. **Configure Build Settings**
 
 Edit `conf/local.conf`:
 ```bash
@@ -247,6 +284,12 @@ Before initial programming, configure the DIP switches for SPI programming mode:
 
 1. **Build the Yocto Image**
 
+Using KAS (recommended):
+```bash
+kas build meta-sysele-bsp/kas/astrial-h15.yml
+```
+
+Or using manual bitbake:
 ```bash
 bitbake core-image-hailo-dev
 ```
