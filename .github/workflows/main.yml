@@ -124,10 +124,19 @@ jobs:
         with:
           name: astrial-h15-yocto-build
           path: |
-            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env-astrial-h15
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic
-            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-minimal-astrial-h15.wic
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env-astrial-h15
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo15_uart_recovery_fw.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo15_scu_bl.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/scu_bl_cfg_a.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo15_scu_fw.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot.dtb.signed
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-spl.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/customer_certificate.bin
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-tfa.itb
           if-no-files-found: warn
 
       - name: Archive Build Logs
