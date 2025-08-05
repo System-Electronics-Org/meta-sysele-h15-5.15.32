@@ -149,80 +149,49 @@ jobs:
             meta-hailo-soc/build/buildhistory/
           if-no-files-found: warn
 
-      - name: Create Release Images Repository
-        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
-        run: |
-          # This step would create/update the Astrial-H15-images repository
-          # with the built images for easy distribution
-          echo "Built images are ready for distribution"
-          echo "Image artifacts saved to: meta-hailo-soc/build/tmp/deploy/images/astrial-h15/"
-          ls -la meta-hailo-soc/build/tmp/deploy/images/astrial-h15/ || true
-
-      - name: Create Nightly Release
-        if: always() && (success() || failure())
+      - name: Create Release
         uses: actions/create-release@v1
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: nightly-${{ github.ref_name }}-${{ github.run_number }}
-          release_name: Nightly Release - ${{ github.ref_name }} #${{ github.run_number }}
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
           body: |
-            Nightly build from branch `${{ github.ref_name }}`
-            
+
             **Build Information:**
             - Branch: ${{ github.ref_name }}
             - Commit: ${{ github.sha }}
-            - Build Number: ${{ github.run_number }}
+
             - Build Date: ${{ github.event.head_commit.timestamp }}
             
             **Artifacts included:**
-            - core-image-hailo-dev-astrial-h15.wic - Full development image
-            - core-image-minimal-astrial-h15.wic - Minimal image
-            - fitImage-astrial-h15.bin - Kernel and device tree
-            - u-boot-initial-env-astrial-h15 - U-Boot environment
-            - Various bootloader and firmware binaries
-            
-            This is an automated nightly build. Use for testing purposes.
+            - `core-image-hailo-dev-astrial-h15.wic`: Full development image
+            - `core-image-minimal-astrial-h15.wic`: Minimal image
+            - `fitImage`: Kernel and device tree
+            - `hailo15_uart_recovery_fw.bin`: UART recovery firmware
+            - `hailo15_scu_bl.bin`: SCU bootloader
+            - `scu_bl_cfg_a.bin`: SCU bootloader configuration
+            - `hailo15_scu_fw.bin`: SCU firmware
+            - `u-boot.dtb.signed`: Signed U-Boot device tree
+            - `u-boot-spl.bin`: U-Boot SPL
+            - `u-boot-initial-env`: U-Boot initial environment
+            - `customer_certificate.bin`: Customer certificate
+            - `u-boot-tfa.itb`: U-Boot TFA
           draft: false
           prerelease: true
 
       - name: Download Build Artifacts for Release
-        if: always() && (success() || failure())
         uses: actions/download-artifact@v4
         with:
           name: astrial-h15-yocto-build
           path: ./release-artifacts
 
       - name: Upload Release Assets
-        if: always() && (success() || failure())
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release-artifacts/meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic
-          asset_name: core-image-hailo-dev-astrial-h15-${{ github.ref_name }}.wic
-          asset_content_type: application/octet-stream
+        uses: softprops/action-gh-release@v1
 
-      - name: Upload Minimal Image Asset
-        if: always() && (success() || failure())
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release-artifacts/meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-minimal-astrial-h15.wic
-          asset_name: core-image-minimal-astrial-h15-${{ github.ref_name }}.wic
-          asset_content_type: application/octet-stream
+          files: ./release-artifacts/*
 
-      - name: Upload FitImage Asset
-        if: always() && (success() || failure())
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release-artifacts/meta-hailo-soc/build/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
-          asset_name: fitImage-astrial-h15-${{ github.ref_name }}.bin
-          asset_content_type: application/octet-stream
