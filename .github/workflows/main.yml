@@ -35,6 +35,17 @@ jobs:
         with:
           path: meta-sysele-bsp
 
+      - name: Cache Yocto Downloads and sstate-cache
+        if: github.event_name != 'schedule'
+        uses: actions/cache@v4
+        with:
+          path: |
+            meta-hailo-soc/build/downloads
+            meta-hailo-soc/build/sstate-cache
+          key: yocto-cache-${{ runner.os }}-${{ hashFiles('meta-sysele-bsp/kas/astrial-h15.yml') }}
+          restore-keys: |
+            yocto-cache-${{ runner.os }}-
+
       - name: Setup Build Environment
         run: |
           # Clone main Hailo repository
