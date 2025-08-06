@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-large-runner
+    permissions:
+      contents: write
     steps:
       - name: Install Dependencies
         run: |
