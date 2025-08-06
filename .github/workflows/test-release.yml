@@ -26,6 +26,8 @@ jobs:
           name: astrial-h15-yocto-build
           path: ./release-files
           run_id: ${{ inputs.source_run_id }}
+          repo: System-Electronics-Org/meta-sysele-h15-5.15.32
+          workflow: main.yml
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Compressed Release Archive
