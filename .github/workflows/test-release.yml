@@ -1,6 +1,9 @@
 name: Test Release Creation
 
 on:
+  push:
+    branches:
+      - github-release
   workflow_dispatch:
     inputs:
       source_run_id:
