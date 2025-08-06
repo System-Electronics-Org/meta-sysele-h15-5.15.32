@@ -24,17 +24,16 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           name: astrial-h15-yocto-build
-          path: ./release-files
+          path: ./
           run_id: ${{ inputs.source_run_id }}
           repo: System-Electronics-Org/meta-sysele-h15-5.15.32
           workflow: main.yml
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          skip_unpack: true
 
-      - name: Create Compressed Release Archive
+      - name: Rename Downloaded Artifact
         run: |
-          cd release-files
-          zip -r ../astrial-h15-yocto-build-test-v${{ github.run_number }}.zip .
-          cd ..
+          mv astrial-h15-yocto-build.zip astrial-h15-yocto-build-test-v${{ github.run_number }}.zip
           ls -lh astrial-h15-yocto-build-test-v${{ github.run_number }}.zip
 
       - name: Create Test Release with Compressed Archive
