@@ -155,9 +155,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: astrial-h15-yocto-build
-          path: ./release-artifacts
+          path: ./release-files
 
-      - name: Create Release and Upload Assets
+      - name: Create Compressed Release Archive
+        run: |
+          cd release-files
+          zip -r ../astrial-h15-yocto-build-v${{ github.run_number }}.zip .
+          cd ..
+          ls -lh astrial-h15-yocto-build-v${{ github.run_number }}.zip
+
+      - name: Create Release with Compressed Archive
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ github.run_number }}
@@ -168,10 +175,10 @@ jobs:
             - Commit: ${{ github.sha }}
             - Build Date: ${{ github.event.head_commit.timestamp }}
             
-            **Artifacts included:**
+            **Download and extract astrial-h15-yocto-build-v${{ github.run_number }}.zip to get:**
             - `core-image-hailo-dev-astrial-h15.wic`: Full development image
             - `core-image-minimal-astrial-h15.wic`: Minimal image
-            - `fitImage`: Kernel and device tree
+            - `fitImage-astrial-h15.bin`: Kernel and device tree
             - `hailo15_uart_recovery_fw.bin`: UART recovery firmware
             - `hailo15_scu_bl.bin`: SCU bootloader
             - `scu_bl_cfg_a.bin`: SCU bootloader configuration
@@ -181,7 +188,7 @@ jobs:
             - `u-boot-initial-env`: U-Boot initial environment
             - `customer_certificate.bin`: Customer certificate
             - `u-boot-tfa.itb`: U-Boot TFA
-          files: ./release-artifacts/*
+          files: astrial-h15-yocto-build-v${{ github.run_number }}.zip
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
