@@ -136,7 +136,6 @@ Go to the [releases page](https://github.com/System-Electronics-Org/meta-sysele-
 
 **Available Images:**
 - `core-image-hailo-dev-astrial-h15.wic` - Complete development image with AI tools
-- `core-image-minimal-astrial-h15.wic` - Minimal system image
 
 **Skip to [Operating System Installation](#operating-system-installation) if using prebuilt images.**
 
