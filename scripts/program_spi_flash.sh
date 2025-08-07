@@ -29,8 +29,10 @@ fi
 # Default serial device
 SERIAL_DEVICE=${1:-/dev/ttyUSB0}
 
-# Try to find build directory - check common locations
-if [ -d "../build/tmp/deploy/images/astrial-h15" ]; then
+# Try to find build directory - check current directory first, then common locations
+if [ -f "hailo15_uart_recovery_fw.bin" ]; then
+    BUILD_DIR="."
+elif [ -d "../build/tmp/deploy/images/astrial-h15" ]; then
     BUILD_DIR="../build/tmp/deploy/images/astrial-h15"
 elif [ -d "build/tmp/deploy/images/astrial-h15" ]; then
     BUILD_DIR="build/tmp/deploy/images/astrial-h15"
@@ -52,6 +54,7 @@ if [ ! -d "$BUILD_DIR" ]; then
     echo "Error: Build directory not found: $BUILD_DIR"
     echo ""
     echo "Searched in the following locations:"
+    echo "  - . (current directory)"
     echo "  - ../build/tmp/deploy/images/astrial-h15"
     echo "  - build/tmp/deploy/images/astrial-h15"  
     echo "  - ../../build/tmp/deploy/images/astrial-h15"
