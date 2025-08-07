@@ -177,7 +177,6 @@ jobs:
             
             **Download and extract astrial-h15-yocto-build-v${{ github.run_number }}.zip to get:**
             - `core-image-hailo-dev-astrial-h15.wic`: Full development image
-            - `core-image-minimal-astrial-h15.wic`: Minimal image
             - `fitImage-astrial-h15.bin`: Kernel and device tree
             - `hailo15_uart_recovery_fw.bin`: UART recovery firmware
             - `hailo15_scu_bl.bin`: SCU bootloader
