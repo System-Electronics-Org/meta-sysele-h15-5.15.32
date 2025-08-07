@@ -298,12 +298,14 @@ cd meta-sysele-bsp
 sudo ./scripts/program_spi_flash.sh
 ```
 
+**Note**: this script will search the file in the same folder or in a possible yocto build folder
 **Optional**: If your serial device is not `/dev/ttyUSB0`, specify it as an argument:
 
 ```bash
 sudo ./scripts/program_spi_flash.sh /dev/ttyUSB1
 ```
 
+**Note**: this script will search the file in the same folder or in a possible yocto build folder
 **Note**: Root privileges (sudo) are required for serial port access.
 
 The script will automatically:
@@ -342,9 +344,13 @@ pip install tftpy
 If using prebuilt images, serve directly from the downloaded directory:
 
 ```bash
-cd Astrial-H15-images
-sudo python3 -m tftpy.tftpserver --port 69 --root .
+cp astrial-h15-yocto-build-<version>.zip meta-sysele-bsp/scripts/
+cd meta-sysele-bsp/scripts/
+unzip astrial-h15-yocto-build-<version>.zip
+sudo python3 -m tftp_server.py --port 69 --root .
 ```
+
+**Note**: Be sure that the folder contains the .wic file from the zip
 
 #### Option B: Using Built Images
 
@@ -648,7 +654,7 @@ This documentation is regularly updated. Check the GitHub repository for the lat
 ### Community Resources
 
 - **Main Repository**: [https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32)
-- **Prebuilt Images**: [https://github.com/System-Electronics-Org/Astrial-H15-images](https://github.com/System-Electronics-Org/Astrial-H15-images)
+- **Prebuilt Images**: [https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/releases](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/releases)
 
 ---
 
