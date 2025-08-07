@@ -298,15 +298,17 @@ cd meta-sysele-bsp
 sudo ./scripts/program_spi_flash.sh
 ```
 
-**Note**: this script will search the file in the same folder or in a possible yocto build folder
+**Note**: this script will search the bootloader and all the other build files in the same folder or in a possible yocto build folder
+
 **Optional**: If your serial device is not `/dev/ttyUSB0`, specify it as an argument:
+
 
 ```bash
 sudo ./scripts/program_spi_flash.sh /dev/ttyUSB1
 ```
 
-**Note**: this script will search the file in the same folder or in a possible yocto build folder
 **Note**: Root privileges (sudo) are required for serial port access.
+
 
 The script will automatically:
 - Verify build artifacts are available
