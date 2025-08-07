@@ -293,8 +293,15 @@ bitbake core-image-hailo-dev
 
 The meta layer includes a pre-configured script for SPI flash programming. From your meta layer directory:
 
+**Note**: If using prebuilt images, copy and unzip the file directly in the script folder
+
 ```bash
-cd meta-sysele-bsp
+cp astrial-h15-yocto-build-<version>.zip meta-sysele-bsp/scripts/
+cd meta-sysele-bsp/scripts/
+unzip astrial-h15-yocto-build-<version>.zip
+```
+
+```bash
 sudo ./scripts/program_spi_flash.sh
 ```
 
@@ -304,7 +311,7 @@ sudo ./scripts/program_spi_flash.sh
 
 
 ```bash
-sudo ./scripts/program_spi_flash.sh /dev/ttyUSB1
+sudo ./program_spi_flash.sh /dev/ttyUSB1
 ```
 
 **Note**: Root privileges (sudo) are required for serial port access.
@@ -343,7 +350,7 @@ pip install tftpy
 
 #### Option A: Using Prebuilt Images
 
-If using prebuilt images, serve directly from the downloaded directory:
+**Note**: If using prebuilt images, serve directly from the downloaded directory (unzip the release file only if you didn't it already for the "SPI Flash programming"):
 
 ```bash
 cp astrial-h15-yocto-build-<version>.zip meta-sysele-bsp/scripts/
