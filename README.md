@@ -128,15 +128,11 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="0403", ATTR{idProduct}=="6011", GROUP="plugde
 
 ### Option 1: Using Prebuilt Images (Quick Start)
 
-For rapid deployment without building from source, System Electronics provides prebuilt images:
+For rapid deployment without building from source, you can use the prebuilt images from the releases page of this repository:
 
 **Download Prebuilt Images:**
-```bash
-git clone https://github.com/System-Electronics-Org/Astrial-H15-images.git
-cd Astrial-H15-images
-```
 
-The repository contains ready-to-use `.wic` files that can be directly programmed to your board via TFTP.
+Go to the [releases page](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/releases) and download the latest release artifact. The artifact is a zip file containing all the necessary files, including the `.wic` images.
 
 **Available Images:**
 - `core-image-hailo-dev-astrial-h15.wic` - Complete development image with AI tools
@@ -660,3 +656,4 @@ This documentation is regularly updated. Check the GitHub repository for the lat
 *Copyright © 2025 System Electronics. All rights reserved.*
 
 *This document contains proprietary information. Reproduction or distribution without written permission is prohibited.*
+

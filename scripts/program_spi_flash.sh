@@ -71,7 +71,7 @@ if [ ! -e "$SERIAL_DEVICE" ]; then
 fi
 
 echo "Starting UART boot firmware loader..."
-uart_boot_fw_loader \
+./uart_boot_fw_loader \
     --serial-device-name "$SERIAL_DEVICE" \
     --firmware "$BUILD_DIR/hailo15_uart_recovery_fw.bin"
 
@@ -81,7 +81,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Programming SPI flash memory..."
-hailo15_spi_flash_program \
+./hailo15_spi_flash_program \
     --scu-bootloader "$BUILD_DIR/hailo15_scu_bl.bin" \
     --scu-bootloader-config "$BUILD_DIR/scu_bl_cfg_a.bin" \
     --scu-firmware "$BUILD_DIR/hailo15_scu_fw.bin" \
