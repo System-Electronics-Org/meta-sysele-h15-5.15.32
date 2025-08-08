@@ -354,7 +354,7 @@ pip install tftpy
 cp astrial-h15-yocto-build-<version>.zip meta-sysele-bsp/scripts/
 cd meta-sysele-bsp/scripts/
 unzip astrial-h15-yocto-build-<version>.zip
-sudo python3 -m tftp_server.py --port 69 --root .
+sudo $(which python3) ./tftp_server.py --port 69  .
 ```
 
 **Note**: Be sure that the folder contains the .wic file from the zip
@@ -364,8 +364,8 @@ sudo python3 -m tftp_server.py --port 69 --root .
 The meta layer includes a pre-configured TFTP server script. From your meta layer directory:
 
 ```bash
-cd meta-sysele-bsp
-sudo python3 scripts/tftp_server.py
+cd meta-sysele-bsp/scripts
+sudo $(which python3) ./tftp_server.py --port 69
 ```
 
 **Note**: Root privileges (sudo) are required for binding to TFTP port 69.
@@ -380,7 +380,7 @@ The script will automatically:
 **Optional**: If your build directory is in a non-standard location, specify it manually:
 
 ```bash
-sudo python3 scripts/tftp_server.py /custom/path/to/build/tmp/deploy/images/astrial-h15
+sudo $(which python3) scripts/tftp_server.py --port 69 /custom/path/to/build/tmp/deploy/images/astrial-h15
 ```
 
 ### Programming eMMC Storage
