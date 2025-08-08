@@ -13,18 +13,12 @@
 # - Built Yocto image artifacts available
 # - Root privileges (sudo) for serial port access
 #
-# Usage: sudo ./program_spi_flash.sh [serial_device]
-# Example: sudo ./program_spi_flash.sh /dev/ttyUSB0
+# Usage: ./program_spi_flash.sh [serial_device]
+# Example: ./program_spi_flash.sh /dev/ttyUSB0
 
 set -e
 
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-    echo "Error: This script requires root privileges for serial port access."
-    echo "Please run with sudo:"
-    echo "  sudo ./program_spi_flash.sh [serial_device]"
-    exit 1
-fi
+echo "WARNING: This script requires root permissions for serial port access."
 
 # Default serial device
 SERIAL_DEVICE=${1:-/dev/ttyUSB0}
@@ -73,8 +67,8 @@ if [ ! -e "$SERIAL_DEVICE" ]; then
     exit 1
 fi
 
-echo "Starting UART boot firmware loader..."
-./uart_boot_fw_loader \
+echo "Starting UART boot firmware loader, requiring sudo permissions..."
+sudo $(which python3) ./uart_boot_fw_loader \
     --serial-device-name "$SERIAL_DEVICE" \
     --firmware "$BUILD_DIR/hailo15_uart_recovery_fw.bin"
 
@@ -83,8 +77,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "Programming SPI flash memory..."
-./hailo15_spi_flash_program \
+echo "Programming SPI flash memory, requiring sudo permissions..."
+sudo $(which python3) ./hailo15_spi_flash_program \
     --scu-bootloader "$BUILD_DIR/hailo15_scu_bl.bin" \
     --scu-bootloader-config "$BUILD_DIR/scu_bl_cfg_a.bin" \
     --scu-firmware "$BUILD_DIR/hailo15_scu_fw.bin" \

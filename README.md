@@ -302,7 +302,7 @@ unzip astrial-h15-yocto-build-<version>.zip
 ```
 
 ```bash
-sudo ./scripts/program_spi_flash.sh
+./scripts/program_spi_flash.sh
 ```
 
 **Note**: this script will search the bootloader and all the other build files in the same folder or in a possible yocto build folder
@@ -311,10 +311,8 @@ sudo ./scripts/program_spi_flash.sh
 
 
 ```bash
-sudo ./program_spi_flash.sh /dev/ttyUSB1
+./program_spi_flash.sh /dev/ttyUSB1
 ```
-
-**Note**: Root privileges (sudo) are required for serial port access.
 
 
 The script will automatically:
@@ -622,7 +620,7 @@ If you see errors like "Partition 1 not valid" or "SPL: failed to boot from all 
 ```bash
 bitbake core-image-hailo-dev -c cleansstate
 bitbake core-image-hailo-dev
-sudo ./scripts/program_spi_flash.sh
+./scripts/program_spi_flash.sh
 ```
 
 #### Automatic Boot Sequence
