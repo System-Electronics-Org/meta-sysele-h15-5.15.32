@@ -6,6 +6,113 @@
 
 ---
 
+## QUICKSTART
+
+**Get your Astrial H15 board running in under 30 minutes - no git repositories required!**
+
+### What You Need
+- Astrial H15 board + compatible CM4/CM5 carrier board
+- Ubuntu 20.04+ host computer 
+- FTDI USB-to-serial cable
+- Ethernet cable
+- Internet connection
+
+### Step 1: Download Release Package
+
+Go to [releases page](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/releases) and download the latest `astrial-h15-yocto-build-<version>.tar.gz` file.
+
+Extract it on your host computer:
+```bash
+tar -xzf astrial-h15-yocto-build-<version>.tar.gz
+cd astrial-h15-yocto-build-<version>/
+```
+
+**✓ The tar.gz contains everything needed: bootloader, OS image, and all scripts**
+
+### Step 2: Setup Tools and Environment
+
+**Download Hailo board tools:**
+Go to [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/) and download the Hailo Vision Processor Software Package. Extract it and copy the `hailo15_board_tools-<VERSION>.whl` file to your release folder.
+
+```bash
+python3 -m venv hailo15_env
+source hailo15_env/bin/activate
+pip install hailo15_board_tools-*.whl
+pip install tftpy
+sudo apt-get install u-boot-tools
+```
+
+Configure USB permissions:
+```bash
+sudo tee /etc/udev/rules.d/11-ftdi.rules > /dev/null << EOF
+SUBSYSTEM=="usb", ATTR{idVendor}=="0403", ATTR{idProduct}=="6011", GROUP="plugdev", MODE="0664"
+EOF
+sudo udevadm control --reload-rules
+```
+
+### Step 3: Setup Hardware
+
+**Physical connections:**
+1. Mount Astrial H15 SoM on your carrier board
+2. Connect FTDI cable: GND→Pin6, TX→Pin29, RX→Pin7
+3. Connect Ethernet cable between host and board
+4. **Do NOT power on yet**
+
+**DIP switch configuration for programming:**
+- Switch 1: **ON** 
+- Switch 2: **OFF**
+
+### Step 4: Burn Bootloader
+
+```bash
+./program_spi_flash.sh
+```
+
+Wait for "Programming completed successfully" message (~5 minutes).
+
+**Switch DIP switches to normal boot:**
+- Switch 1: **OFF**
+- Switch 2: **OFF**
+
+### Step 5: Burn SD Card
+
+```bash
+sudo dd if=meta-hailo-soc/build/tmp/deploy/images/astrial-h15core-image-hailo-dev-astrial-h15.wic of=/dev/sdX bs=4M status=progress
+sync
+```
+
+**Replace `/dev/sdX` with your actual SD card device!**
+
+### Step 6: Boot Board
+
+1. Insert SD card into carrier board
+2. Connect serial terminal: `sudo picocom --baud 115200 /dev/ttyUSB0`
+3. Power on board
+4. Select "Boot from SD Card" from menu (or use "Autodetect")
+5. Wait for login prompt: `root@astrialh15:~#`
+
+**Login: root/root**
+
+### Step 7: Verify Everything Works
+
+```bash
+# Check Hailo driver
+lsmod | grep hailo
+
+# Test Hailo hardware
+hailortcli scan
+
+# Test Python/AI tools
+python3 -c "import hailort; print('PyHailort OK')"
+
+# Test network
+ping 8.8.8.8
+```
+
+**🎉 Success! Your Astrial H15 is now ready for AI development.**
+
+---
+
 ## Table of Contents
 
 1. [Introduction](#introduction)
@@ -296,9 +403,9 @@ The meta layer includes a pre-configured script for SPI flash programming. From 
 **Note**: If using prebuilt images, copy and unzip the file directly in the script folder
 
 ```bash
-cp astrial-h15-yocto-build-<version>.zip meta-sysele-bsp/scripts/
+cp astrial-h15-yocto-build-<version>.tar.gz meta-sysele-bsp/scripts/
 cd meta-sysele-bsp/scripts/
-unzip astrial-h15-yocto-build-<version>.zip
+tar -xzf astrial-h15-yocto-build-<version>.tar.gz
 ```
 
 ```bash
@@ -351,9 +458,9 @@ pip install tftpy
 **Note**: If using prebuilt images, serve directly from the downloaded directory (unzip the release file only if you didn't it already for the "SPI Flash programming"):
 
 ```bash
-cp astrial-h15-yocto-build-<version>.zip meta-sysele-bsp/scripts/
+cp astrial-h15-yocto-build-<version>.tar.gz meta-sysele-bsp/scripts/
 cd meta-sysele-bsp/scripts/
-unzip astrial-h15-yocto-build-<version>.zip
+tar -xzf astrial-h15-yocto-build-<version>.tar.gz
 sudo $(which python3) ./tftp_server.py --port 69  .
 ```
 

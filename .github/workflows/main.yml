@@ -165,9 +165,9 @@ jobs:
           if [ -d "meta-sysele-bsp/scripts" ]; then
             cp -p meta-sysele-bsp/scripts/* .
           fi
-          zip -r ../astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.zip .
+          tar -czf ../astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz .
           cd ..
-          ls -lh astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.zip
+          ls -lh astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz
 
       - name: Create Release with Compressed Archive
         uses: softprops/action-gh-release@v1
@@ -180,7 +180,7 @@ jobs:
             - Commit: ${{ github.sha }}
             - Build Date: ${{ github.event.head_commit.timestamp }}
             
-            **Download and extract astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.zip to get:**
+            **Download and extract astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz to get:**
             - `core-image-hailo-dev-astrial-h15.wic`: Full development image
             - `fitImage-astrial-h15.bin`: Kernel and device tree
             - `hailo15_uart_recovery_fw.bin`: UART recovery firmware
@@ -192,7 +192,7 @@ jobs:
             - `u-boot-initial-env`: U-Boot initial environment
             - `customer_certificate.bin`: Customer certificate
             - `u-boot-tfa.itb`: U-Boot TFA
-          files: astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.zip
+          files: astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
