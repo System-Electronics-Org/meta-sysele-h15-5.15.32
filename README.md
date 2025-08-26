@@ -8,8 +8,6 @@
 
 ## QUICKSTART
 
-**Get your Astrial H15 board running in under 30 minutes - no git repositories required!**
-
 ### What You Need
 - Astrial H15 board + compatible CM4/CM5 carrier board
 - Ubuntu 20.04+ host computer 
