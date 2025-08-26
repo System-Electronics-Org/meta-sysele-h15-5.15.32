@@ -22,7 +22,6 @@ Go to [releases page](https://github.com/System-Electronics-Org/meta-sysele-h15-
 Extract it on your host computer:
 ```bash
 tar -xzf astrial-h15-yocto-build-<version>.tar.gz
-cd astrial-h15-yocto-build-<version>/
 ```
 
 **✓ The tar.gz contains everything needed: bootloader, OS image, and all scripts**
