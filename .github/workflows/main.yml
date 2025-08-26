@@ -164,7 +164,11 @@ jobs:
           # Copy scripts to root level preserving executable permissions
           if [ -d "meta-sysele-bsp/scripts" ]; then
             cp -p meta-sysele-bsp/scripts/* .
+            # Ensure execute permissions on all script files
+            chmod +x *.sh *.py hailo15_* uart_* 2>/dev/null || true
           fi
+          # Ensure execute permissions on any scripts in root
+          chmod +x *.sh *.py hailo15_* uart_* 2>/dev/null || true
           tar -czf ../astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz .
           cd ..
           ls -lh astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz
