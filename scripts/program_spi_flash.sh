@@ -30,6 +30,8 @@ elif [ -d "../build/tmp/deploy/images/astrial-h15" ]; then
     BUILD_DIR="../build/tmp/deploy/images/astrial-h15"
 elif [ -d "build/tmp/deploy/images/astrial-h15" ]; then
     BUILD_DIR="build/tmp/deploy/images/astrial-h15"
+elif [ -d "meta-hailo-soc/build/tmp/deploy/images/astrial-h15" ]; then
+    BUILD_DIR="meta-hailo-soc/build/tmp/deploy/images/astrial-h15"
 elif [ -d "../../build/tmp/deploy/images/astrial-h15" ]; then
     BUILD_DIR="../../build/tmp/deploy/images/astrial-h15"
 else
@@ -51,6 +53,7 @@ if [ ! -d "$BUILD_DIR" ]; then
     echo "  - . (current directory)"
     echo "  - ../build/tmp/deploy/images/astrial-h15"
     echo "  - build/tmp/deploy/images/astrial-h15"  
+    echo "  - meta-hailo-soc/build/tmp/deploy/images/astrial-h15"
     echo "  - ../../build/tmp/deploy/images/astrial-h15"
     echo ""
     echo "Please ensure you have:"
