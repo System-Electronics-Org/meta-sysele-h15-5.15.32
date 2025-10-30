@@ -53,13 +53,18 @@ sudo udevadm control --reload-rules
 1. Mount Astrial H15 SoM on your carrier board
 2. Connect FTDI cable: GND→Pin6, TX→Pin29, RX→Pin7
 3. Connect Ethernet cable between host and board
-4. **Do NOT power on yet**
+4. Set the carrier board's GPIO voltage to 1.8V
+5. **Do NOT power on yet**
+
+![1.8V GPIO Voltage](docs/images/1v8.jpg)
 
 **DIP switch configuration for programming:**
 - Switch 1: **ON** 
 - Switch 2: **OFF**
 
 ### Step 4: Burn Bootloader
+
+- **Turn on the board now**
 
 ```bash
 ./program_spi_flash.sh
