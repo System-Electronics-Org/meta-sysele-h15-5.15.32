@@ -397,7 +397,7 @@
     };
 
     gyro_icm42670_2: icm42670_2@69 {
-        status = "ok";
+        status = "disabled";
         compatible = "invensense,icm42670";
         reg = <0x69>;
         vdd-supply = <&regulator_1p8v>;
