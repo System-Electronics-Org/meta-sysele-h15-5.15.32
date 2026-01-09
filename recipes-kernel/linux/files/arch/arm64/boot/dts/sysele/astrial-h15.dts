@@ -247,9 +247,6 @@
     status = "ok";
 };
 
-&vc8000e_reserved {
-    status = "ok";
-};
 
 &xrp {
     status = "okay";
@@ -388,7 +385,7 @@
     pinctrl-names = "default";
     pinctrl-0 = <&pinctrl_i2c2>;
     gyro_lsm6dsr_2: lsm6dsr_2@6b {
-        status = "disabled";
+        status = "ok";
         compatible = "st,lsm6dsr";
         reg = <0x6b>;
         vdd-supply = <&regulator_1p8v>;

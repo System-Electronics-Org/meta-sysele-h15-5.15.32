@@ -4,5 +4,5 @@ header:
   includes:
     - ../kas/yocto-base.yml
     - astrial-h15-vpu-base.yml
-    - ../kas/targets/hailo15-target-core-image-hailo-dev.yml
+    - ../kas/targets/hailo-soc-target-core-image-hailo-dev.yml
     - astrial-h15-machine.yml
