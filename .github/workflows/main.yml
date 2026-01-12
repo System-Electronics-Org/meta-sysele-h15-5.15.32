@@ -39,8 +39,8 @@ jobs:
 
       - name: Setup Build Environment
         run: |
-          # Clone main Hailo repository
-          git clone -b 1.9.1 https://github.com/hailo-ai/meta-hailo-soc.git
+          # Clone main Hailo repository with dual-sensor support
+          git clone -b review-dual-sensor-dv-0 https://github.com/hailo-ai/meta-hailo-soc.git
           cd meta-hailo-soc
           
           # Copy the checked out meta-sysele-bsp into the correct location
