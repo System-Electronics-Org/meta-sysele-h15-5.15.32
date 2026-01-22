@@ -6,7 +6,7 @@
 /dts-v1/;
 #include "../hailo/hailo15-base.dtsi"
 #include <dt-bindings/gpio/gpio.h>
-
+ 
 / {
     memory {
         device_type = "memory";
@@ -38,6 +38,23 @@
 
 &i2c_1 {
     status = "ok";
+    sensor_0: camera-sensor@1a {
+        status = "ok";
+        compatible = "sony,imx334", "sony,imx675", "sony,imx678", "sony,imx715";
+        reg = <0x1a>;
+        clocks = <&sensor_clk>;
+        clock-names = "inclk";
+        clock-frequency = <24000000>;
+        csi-id = <0>; 
+        reset-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>; 
+        port {
+            sensor_out_csi2rx0: endpoint {
+                data-lanes = <1 2 3 4>;
+                remote-endpoint = <&csi2rx0_in_sensor>;
+                link-frequencies = /bits/ 64 <891000000 1440000000 1782000000>;
+            };
+        };
+    };
     ina231_1v8: 1v8@40 {
         compatible = "ti,ina231_precise";
         reg = <0x40>;
@@ -75,17 +92,17 @@
 		DVDD-supply = <&regulator_1p8v>;
     };
 };
-/*
+
 &csi2rx0 {
     status = "ok";
     ports {
         port@0 {
             csi2rx_in_sensor: endpoint {
-                remote-endpoint = <&sensor_out_csi2rx>;
+                remote-endpoint = <&sensor_out_csi2rx0>;
             };
         };
     };
-};*/
+};
 
 &csi2rx1 {
     status = "ok";
