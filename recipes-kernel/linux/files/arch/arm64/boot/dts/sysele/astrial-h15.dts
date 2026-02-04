@@ -50,7 +50,7 @@
         port {
             sensor_out_csi2rx0: endpoint {
                 data-lanes = <1 2 3 4>;
-                remote-endpoint = <&csi2rx0_in_sensor>;
+                remote-endpoint = <&csi2rx_in_sensor>;
                 link-frequencies = /bits/ 64 <891000000 1440000000 1782000000>;
             };
         };
