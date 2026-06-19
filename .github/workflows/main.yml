@@ -1,6 +1,7 @@
 name: Yocto Build Astrial H15
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - '**'  # Matches all branches
@@ -39,8 +40,8 @@ jobs:
 
       - name: Setup Build Environment
         run: |
-          # Clone main Hailo repository
-          git clone -b 1.7.0 https://github.com/hailo-ai/meta-hailo-soc.git
+          # Clone main Hailo repository with dual-sensor support
+          git clone -b review-dual-sensor-dv-0 https://github.com/hailo-ai/meta-hailo-soc.git
           cd meta-hailo-soc
           
           # Copy the checked out meta-sysele-bsp into the correct location
@@ -108,8 +109,12 @@ jobs:
           
           export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
           
-          # Build using KAS with our Astrial H15 configuration (with reduced verbosity)
-          kas build meta-sysele-bsp/kas/astrial-h15.yml 2>&1 | grep -E "(ERROR|WARNING|NOTE|===|Started|Completed|Failed|$)" || true
+          # Build using KAS with our Astrial H15 configuration
+          set -e  # Exit on any error
+          if ! kas build meta-sysele-bsp/kas/astrial-h15.yml; then
+            echo "ERROR: KAS build failed"
+            exit 1
+          fi
 
       - name: Clean Sensitive Files Before Archiving
         run: |
