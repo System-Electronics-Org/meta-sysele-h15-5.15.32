@@ -1,6 +1,7 @@
 name: Yocto Build Astrial H15
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - '**'  # Matches all branches
