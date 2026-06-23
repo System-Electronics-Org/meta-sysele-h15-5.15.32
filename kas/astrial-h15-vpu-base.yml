@@ -23,17 +23,10 @@ repos:
     layers:
       meta-hailo-libhailort:
       meta-hailo-vpu:
-  meta-hailo-dsp:
-    path: ./meta-hailo-dsp
-  meta-hailo-bsp:
-    path: ./meta-hailo-bsp
-  meta-hailo-bsp-examples:
-    path: ./meta-hailo-bsp-examples
-  meta-hailo-imaging:
-    path: ./meta-hailo-imaging
-  meta-hailo-linux:
-    path: ./meta-hailo-linux
-  meta-hailo-media-library:
-    path: ./meta-hailo-media-library
-  meta-hailo-tappas:
-    path: ./meta-hailo-tappas
+      meta-hailo-dsp:
+      meta-hailo-bsp:
+      meta-hailo-bsp-examples:
+      meta-hailo-imaging:
+      meta-hailo-linux:
+      meta-hailo-media-library:
+      meta-hailo-tappas:
