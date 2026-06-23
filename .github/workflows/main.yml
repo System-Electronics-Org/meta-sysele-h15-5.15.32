@@ -30,7 +30,7 @@ jobs:
           sudo locale-gen en_US.UTF-8
           
           # Install KAS
-          sudo pip3 install kas
+          sudo pip3 install "kas==5.2"
 
       - name: Checkout repository
         uses: actions/checkout@v4
