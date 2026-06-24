@@ -1,12 +1,12 @@
-name: Yocto Build Astrial H15
+name: Yocto Build Astrial H15 - Hailo 1.12
 
 on:
   push:
     branches:
-      - '**'  # Matches all branches
+      - porting-hailo-1.12.0
   schedule:
     - cron: '0 2 */14 * *'  # Every 2 weeks at 2 AM UTC (only on default branch)
-
+    
 jobs:
   build:
     runs-on: ubuntu-large-runner
@@ -30,7 +30,8 @@ jobs:
           sudo locale-gen en_US.UTF-8
           
           # Install KAS
-          sudo pip3 install kas
+          sudo pip3 install "kas==5.3"
+          kas --version
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,12 +40,25 @@ jobs:
 
       - name: Setup Build Environment
         run: |
-          # Clone main Hailo repository
-          git clone -b 1.7.0 https://github.com/hailo-ai/meta-hailo-soc.git
+          # Clone the official Hailo 1.12 repository
+          git clone --branch 1.12.0 --single-branch \
+            https://github.com/hailo-ai/meta-hailo-soc.git
           cd meta-hailo-soc
           
           # Copy the checked out meta-sysele-bsp into the correct location
           cp -r ../meta-sysele-bsp ./meta-sysele-bsp
+
+          cat > astrial-h15-ci.yml <<'EOF'
+          header:
+            version: 11
+            includes:
+              - kas/yocto-base.yml
+              - meta-sysele-bsp/kas/astrial-h15-vpu-base.yml
+              - kas/targets/hailo-soc-target-core-image-hailo-dev.yml
+              - meta-sysele-bsp/kas/astrial-h15-machine.yml
+          
+          build_system: openembedded
+          EOF
           
           # Create secure boot keypair from GitHub secret (with security measures)
           if [ "${{ secrets.HAILO_CUSTOMER_KEYPAIR }}" != "" ]; then
@@ -101,15 +115,19 @@ jobs:
           
           # CI-specific build optimizations - reduce log verbosity
           export BITBAKE_UI_OPTS="-k"
-          export BB_LOGCONFIG=""  
+          export BB_LOGCONFIG=""
           export BB_CONSOLELOG=""
           export BB_DEFAULT_TASK="build"
           export GITHUB_ACTIONS_BUILD=1  # Flag to detect CI environment
           
           export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
           
-          # Build using KAS with our Astrial H15 configuration (with reduced verbosity)
-          kas build meta-sysele-bsp/kas/astrial-h15.yml 2>&1 | grep -E "(ERROR|WARNING|NOTE|===|Started|Completed|Failed|$)" || true
+          # Build using KAS with our Astrial H15 configuration
+          set -e  # Exit on any error
+          if ! kas build astrial-h15-ci.yml; then
+            echo "ERROR: KAS build failed"
+            exit 1
+          fi
 
       - name: Clean Sensitive Files Before Archiving
         run: |

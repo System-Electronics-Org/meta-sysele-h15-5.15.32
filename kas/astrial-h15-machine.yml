@@ -6,7 +6,6 @@ machine: astrial-h15
 local_conf_header:
   astrial_config: |
     # Astrial H15 specific configuration
-    HAILO_TARGET = "core-image-minimal"
     DISTRO_FEATURES:append = " hailo-dev-pkg"
     
     # Camera configuration for IMX334
