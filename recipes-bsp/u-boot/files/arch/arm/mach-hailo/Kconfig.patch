@@ -1,8 +1,8 @@
 --- a/arch/arm/mach-hailo/Kconfig
 +++ b/arch/arm/mach-hailo/Kconfig
-@@ -348,6 +348,10 @@ config TARGET_HAILO10H2_MAPLE
- 	bool "Hailo10H2 Maple"
- 	select MACH_HAILO10H2
+@@ -416,6 +416,10 @@ config TARGET_HAILO12L_MAPLE
+ 	bool "Hailo12L Maple"
+ 	select MACH_HAILO12L
  
 +config TARGET_ASTRIAL_H15
 +	bool "Astrial H15 Development Board"
@@ -11,11 +11,10 @@
  source "board/hailo/hailo15-vp/Kconfig"
  source "board/hailo/hailo15-ginger-soc/Kconfig"
  source "board/hailo/hailo15-ginger-soc-sdio0/Kconfig"
-@@ -367,5 +371,6 @@ source "board/hailo/hailo10h2-board/Kconfig"
- source "board/hailo/hailo10h2-veloce/Kconfig"
- source "board/hailo/hailo10h2-mint/Kconfig"
- source "board/hailo/hailo10h2-maple/Kconfig"
+@@ -439,5 +443,6 @@ source "board/hailo/hailo12l-evb/Kconfig"
+ source "board/hailo/hailo12l-veloce/Kconfig"
+ source "board/hailo/hailo12l-mint/Kconfig"
+ source "board/hailo/hailo12l-maple/Kconfig"
 +source "board/sysele/astrial-h15/Kconfig"
  
  endif
- 
