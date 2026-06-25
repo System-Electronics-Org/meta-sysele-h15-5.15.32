@@ -12,6 +12,10 @@ local_conf_header:
     MACHINE_FEATURES:append = " imx334"
     MACHINE_FEATURES:remove = " imx678"
 
+  wget_workaround: |
+    # Workaround for fetch failures with wget's default user-agent.
+    FETCHCMD_wget = "/usr/bin/env wget -t 2 -T 30 --passive-ftp --user-agent='bitbake/2.0'"
+
 repos:
   meta-sysele-bsp:
     path: ./meta-sysele-bsp
