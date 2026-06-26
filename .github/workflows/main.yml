@@ -139,13 +139,65 @@ jobs:
           find meta-hailo-soc/build -name "*.log" -exec grep -l "PRIVATE\|SECRET\|KEY" {} \; -delete || true
           echo "Sensitive files cleaned before archiving"
 
+      - name: Validate Release Artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEPLOY="meta-hailo-soc/build/tmp/deploy/images/astrial-h15"
+
+          required_artifacts=(
+            "core-image-hailo-dev-astrial-h15.wic"
+            "hailo-update-image-astrial-h15.swu"
+            "fitImage-astrial-h15.bin"
+            "u-boot-initial-env-astrial-h15"
+            "hailo15_uart_recovery_fw.bin"
+            "hailo15_scu_bl.bin"
+            "scu_bl_cfg_a.bin"
+            "hailo15_scu_fw.bin"
+            "u-boot.dtb.signed"
+            "u-boot-spl.bin"
+            "u-boot-initial-env"
+            "customer_certificate.bin"
+            "u-boot-tfa.itb"
+          )
+
+          echo "Validating release artifacts in ${DEPLOY}"
+
+          for artifact in "${required_artifacts[@]}"; do
+            artifact_path="${DEPLOY}/${artifact}"
+
+            if [ ! -s "${artifact_path}" ]; then
+              echo "::error file=${artifact_path}::Required release artifact is missing or empty"
+              exit 1
+            fi
+
+            ls -lh "${artifact_path}"
+          done
+
+          required_scripts=(
+            "meta-sysele-bsp/scripts/hailo15_spi_flash_program"
+            "meta-sysele-bsp/scripts/program_spi_flash.sh"
+            "meta-sysele-bsp/scripts/tftp_server.py"
+            "meta-sysele-bsp/scripts/uart_boot_fw_loader"
+          )
+
+          for script in "${required_scripts[@]}"; do
+            if [ ! -s "${script}" ]; then
+              echo "::error file=${script}::Required release script is missing or empty"
+              exit 1
+            fi
+          done
+
+          echo "All required release artifacts are present."
+
       - name: Archive Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: astrial-h15-yocto-build
           path: |
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic
-            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-minimal-astrial-h15.wic
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo-update-image-astrial-h15.swu
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env-astrial-h15
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo15_uart_recovery_fw.bin
@@ -158,7 +210,7 @@ jobs:
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/customer_certificate.bin
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-tfa.itb
             meta-sysele-bsp/scripts/
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Archive Build Logs
         uses: actions/upload-artifact@v4
@@ -203,7 +255,8 @@ jobs:
             - Build Date: ${{ github.event.head_commit.timestamp }}
             
             **Download and extract astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz to get:**
-            - `core-image-hailo-dev-astrial-h15.wic`: Full development image
+            - `core-image-hailo-dev-astrial-h15.wic`: Complete SD card image for initial provisioning or recovery
+            - `hailo-update-image-astrial-h15.swu`: SWUpdate package for updating an already running device
             - `fitImage-astrial-h15.bin`: Kernel and device tree
             - `hailo15_uart_recovery_fw.bin`: UART recovery firmware
             - `hailo15_scu_bl.bin`: SCU bootloader
