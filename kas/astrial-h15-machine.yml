@@ -17,11 +17,12 @@ local_conf_header:
     FETCHCMD_wget = "/usr/bin/env wget -t 2 -T 30 --passive-ftp --user-agent='bitbake/2.0'"
 
   astrial_wic: |
-    IMAGE_FSTYPES:append = " wic"
-    WKS_FILE = "sd.wks.in"
-    SD_FIXED_SIZE = "32"
-    WKS_FILE_DEPENDS += "linux-yocto-hailo"
-    WKS_FILE_DEPENDS += "${@bb.utils.contains("MACHINE_FEATURES", "falcon_mode", "", "u-boot-tfa-image", d)}"
+    # Keep WIC generation only for the customer-facing development image.
+    # Do not enable it globally, as hailo-update-image also builds swupdate-image.
+    IMAGE_FSTYPES:append:pn-core-image-hailo-dev = " wic"
+    WKS_FILE:pn-core-image-hailo-dev = "sd.wks.in"
+    SD_FIXED_SIZE:pn-core-image-hailo-dev = "32"
+    WKS_FILE_DEPENDS:append:pn-core-image-hailo-dev = " linux-yocto-hailo ${@bb.utils.contains("MACHINE_FEATURES", "falcon_mode", "", "u-boot-tfa-image", d)}"
 
 repos:
   meta-sysele-bsp:
