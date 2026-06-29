@@ -1,6 +1,7 @@
 name: Yocto Build Astrial H15 - Hailo 1.12
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - porting-hailo-1.12.0
