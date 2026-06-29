@@ -6,8 +6,10 @@ LINUX_YOCTO_HAILO_BOARD_VENDOR = "sysele"
 SRC_URI += " \
     file://arch/arm64/boot/dts/sysele/astrial-h15.dts \
     file://arch/arm64/boot/dts/sysele/Makefile \
-    file://hailo15-cpld-pinctrl-fix.patch \
 "
+# TODO: Port this customization to the Hailo 1.12 kernel if still required.
+# The original target file drivers/pinctrl/hailo/pinctrl-hailo15-cpld.c
+# is no longer available in the same form.
 
 do_configure:prepend() {
     # Create vendor directory

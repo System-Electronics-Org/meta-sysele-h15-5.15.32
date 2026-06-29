@@ -6,12 +6,23 @@ machine: astrial-h15
 local_conf_header:
   astrial_config: |
     # Astrial H15 specific configuration
-    HAILO_TARGET = "core-image-minimal"
     DISTRO_FEATURES:append = " hailo-dev-pkg"
     
     # Camera configuration for IMX334
     MACHINE_FEATURES:append = " imx334"
     MACHINE_FEATURES:remove = " imx678"
+
+  wget_workaround: |
+    # Workaround for fetch failures with wget's default user-agent.
+    FETCHCMD_wget = "/usr/bin/env wget -t 2 -T 30 --passive-ftp --user-agent='bitbake/2.0'"
+
+  astrial_wic: |
+    # Keep WIC generation only for the customer-facing development image.
+    # Do not enable it globally, as hailo-update-image also builds swupdate-image.
+    IMAGE_FSTYPES:append:pn-core-image-hailo-dev = " wic"
+    WKS_FILE:pn-core-image-hailo-dev = "sd.wks.in"
+    SD_FIXED_SIZE:pn-core-image-hailo-dev = "32"
+    WKS_FILE_DEPENDS:append:pn-core-image-hailo-dev = " linux-yocto-hailo ${@bb.utils.contains("MACHINE_FEATURES", "falcon_mode", "", "u-boot-tfa-image", d)}"
 
 repos:
   meta-sysele-bsp:

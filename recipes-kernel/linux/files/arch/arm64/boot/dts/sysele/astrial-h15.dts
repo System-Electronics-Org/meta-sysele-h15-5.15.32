@@ -247,10 +247,6 @@
     status = "ok";
 };
 
-&vc8000e_reserved {
-    status = "ok";
-};
-
 &xrp {
     status = "okay";
 };

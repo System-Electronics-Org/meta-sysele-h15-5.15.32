@@ -1,12 +1,12 @@
-name: Yocto Build Astrial H15
+name: Yocto Build Astrial H15 - Hailo 1.12
 
 on:
   push:
     branches:
-      - '**'  # Matches all branches
+      - porting-hailo-1.12.0
   schedule:
     - cron: '0 2 */14 * *'  # Every 2 weeks at 2 AM UTC (only on default branch)
-
+    
 jobs:
   build:
     runs-on: ubuntu-large-runner
@@ -30,7 +30,8 @@ jobs:
           sudo locale-gen en_US.UTF-8
           
           # Install KAS
-          sudo pip3 install kas
+          sudo pip3 install "kas==5.3"
+          kas --version
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,12 +40,25 @@ jobs:
 
       - name: Setup Build Environment
         run: |
-          # Clone main Hailo repository
-          git clone -b 1.7.0 https://github.com/hailo-ai/meta-hailo-soc.git
+          # Clone the official Hailo 1.12 repository
+          git clone --branch 1.12.0 --single-branch \
+            https://github.com/hailo-ai/meta-hailo-soc.git
           cd meta-hailo-soc
           
           # Copy the checked out meta-sysele-bsp into the correct location
           cp -r ../meta-sysele-bsp ./meta-sysele-bsp
+
+          cat > astrial-h15-ci.yml <<'EOF'
+          header:
+            version: 11
+            includes:
+              - kas/yocto-base.yml
+              - meta-sysele-bsp/kas/astrial-h15-vpu-base.yml
+              - kas/targets/hailo-soc-target-core-image-hailo-dev.yml
+              - meta-sysele-bsp/kas/astrial-h15-machine.yml
+          
+          build_system: openembedded
+          EOF
           
           # Create secure boot keypair from GitHub secret (with security measures)
           if [ "${{ secrets.HAILO_CUSTOMER_KEYPAIR }}" != "" ]; then
@@ -101,15 +115,19 @@ jobs:
           
           # CI-specific build optimizations - reduce log verbosity
           export BITBAKE_UI_OPTS="-k"
-          export BB_LOGCONFIG=""  
+          export BB_LOGCONFIG=""
           export BB_CONSOLELOG=""
           export BB_DEFAULT_TASK="build"
           export GITHUB_ACTIONS_BUILD=1  # Flag to detect CI environment
           
           export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
           
-          # Build using KAS with our Astrial H15 configuration (with reduced verbosity)
-          kas build meta-sysele-bsp/kas/astrial-h15.yml 2>&1 | grep -E "(ERROR|WARNING|NOTE|===|Started|Completed|Failed|$)" || true
+          # Build using KAS with our Astrial H15 configuration
+          set -e  # Exit on any error
+          if ! kas build astrial-h15-ci.yml; then
+            echo "ERROR: KAS build failed"
+            exit 1
+          fi
 
       - name: Clean Sensitive Files Before Archiving
         run: |
@@ -121,13 +139,65 @@ jobs:
           find meta-hailo-soc/build -name "*.log" -exec grep -l "PRIVATE\|SECRET\|KEY" {} \; -delete || true
           echo "Sensitive files cleaned before archiving"
 
+      - name: Validate Release Artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEPLOY="meta-hailo-soc/build/tmp/deploy/images/astrial-h15"
+
+          required_artifacts=(
+            "core-image-hailo-dev-astrial-h15.wic"
+            "hailo-update-image-astrial-h15.swu"
+            "fitImage-astrial-h15.bin"
+            "u-boot-initial-env-astrial-h15"
+            "hailo15_uart_recovery_fw.bin"
+            "hailo15_scu_bl.bin"
+            "scu_bl_cfg_a.bin"
+            "hailo15_scu_fw.bin"
+            "u-boot.dtb.signed"
+            "u-boot-spl.bin"
+            "u-boot-initial-env"
+            "customer_certificate.bin"
+            "u-boot-tfa.itb"
+          )
+
+          echo "Validating release artifacts in ${DEPLOY}"
+
+          for artifact in "${required_artifacts[@]}"; do
+            artifact_path="${DEPLOY}/${artifact}"
+
+            if [ ! -s "${artifact_path}" ]; then
+              echo "::error file=${artifact_path}::Required release artifact is missing or empty"
+              exit 1
+            fi
+
+            ls -lh "${artifact_path}"
+          done
+
+          required_scripts=(
+            "meta-sysele-bsp/scripts/hailo15_spi_flash_program"
+            "meta-sysele-bsp/scripts/program_spi_flash.sh"
+            "meta-sysele-bsp/scripts/tftp_server.py"
+            "meta-sysele-bsp/scripts/uart_boot_fw_loader"
+          )
+
+          for script in "${required_scripts[@]}"; do
+            if [ ! -s "${script}" ]; then
+              echo "::error file=${script}::Required release script is missing or empty"
+              exit 1
+            fi
+          done
+
+          echo "All required release artifacts are present."
+
       - name: Archive Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: astrial-h15-yocto-build
           path: |
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic
-            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-minimal-astrial-h15.wic
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo-update-image-astrial-h15.swu
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/fitImage-astrial-h15.bin
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env-astrial-h15
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/hailo15_uart_recovery_fw.bin
@@ -140,7 +210,7 @@ jobs:
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/customer_certificate.bin
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-tfa.itb
             meta-sysele-bsp/scripts/
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Archive Build Logs
         uses: actions/upload-artifact@v4
@@ -185,7 +255,8 @@ jobs:
             - Build Date: ${{ github.event.head_commit.timestamp }}
             
             **Download and extract astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz to get:**
-            - `core-image-hailo-dev-astrial-h15.wic`: Full development image
+            - `core-image-hailo-dev-astrial-h15.wic`: Complete SD card image for initial provisioning or recovery
+            - `hailo-update-image-astrial-h15.swu`: SWUpdate package for updating an already running device
             - `fitImage-astrial-h15.bin`: Kernel and device tree
             - `hailo15_uart_recovery_fw.bin`: UART recovery firmware
             - `hailo15_scu_bl.bin`: SCU bootloader

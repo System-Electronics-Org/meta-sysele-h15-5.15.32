@@ -9,7 +9,13 @@
 #include "hailo15_ddr_configuration.dtsi"
 //#include "hailo15_ddr_MT53E512M32D1-046_regconfig_2GB.dtsi"
 //#include "hailo15_ddr_MT53E2G32D4DE-046_regconfig_8GB.dtsi"
-#include "hailo15_ddr_MT53E1G32D2FW-046_regconfig_ca_odtb_pu_4GB.dtsi"
+/*
+ * Legacy Astrial releases used the same ca_odtb_pu DDR profile
+ * selected by the Hailo15 SBC.
+ * Hailo15 SBC 1.12 now uses this updated 4GB LPDDR4 profile.
+ * DDR stability must still be validated on Astrial H15 hardware.
+ */
+#include "hailo1x_ddr_MT53E1G32D2FW-046-B_regconfig_4GB_LP4.dtsi"
 
 &hailo_boot_info {
     shutdown-gpio-pin = <20>;

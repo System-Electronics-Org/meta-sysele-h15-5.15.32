@@ -257,13 +257,13 @@ Go to the [releases page](https://github.com/System-Electronics-Org/meta-sysele-
 1. **Install KAS Build Tool**
 
 ```bash
-pip3 install kas
+pip3 install "kas==5.3"
 ```
 
 2. **Clone Main Hailo Repository**
 
 ```bash
-git clone -b 1.7.0 https://github.com/hailo-ai/meta-hailo-soc.git
+git clone --branch 1.12.0 --single-branch https://github.com/hailo-ai/meta-hailo-soc.git
 cd meta-hailo-soc
 ```
 
