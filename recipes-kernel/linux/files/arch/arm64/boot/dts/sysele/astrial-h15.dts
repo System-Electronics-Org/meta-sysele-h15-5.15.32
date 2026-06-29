@@ -38,7 +38,7 @@
 
 &i2c_1 {
     status = "ok";
-    sensor_0: camera-sensor@1a {
+    sensor_csi0: camera-sensor@1a {
         status = "ok";
         compatible = "sony,imx334", "sony,imx675", "sony,imx678", "sony,imx715";
         reg = <0x1a>;
