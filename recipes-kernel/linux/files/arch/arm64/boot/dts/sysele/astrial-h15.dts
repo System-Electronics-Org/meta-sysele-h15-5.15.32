@@ -25,7 +25,6 @@
         clock-names = "inclk";
         clock-frequency = <24000000>;
         csi-id = <1>;
-        reset-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;        
         port {
             sensor_out_csi2rx1: endpoint {
                 data-lanes = <1 2 3 4>;
@@ -46,7 +45,6 @@
         clock-names = "inclk";
         clock-frequency = <24000000>;
         csi-id = <0>;
-        reset-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
         port {
             sensor_out_csi2rx0: endpoint {
                 data-lanes = <1 2 3 4>;
@@ -558,6 +556,20 @@
     gpio-ranges = <&pinctrl 0 16 16>;
 
     gpio-line-names = GPIO_LINE_NAMES;
+
+    /*
+     * CAM0_GPIO0 and CAM1_GPIO0 are physically tied together by
+     * the populated JP15/JP16 jumpers. Keep the shared reset
+     * deasserted so one sensor cannot reset the other during
+     * detection or runtime power management.
+     */
+    camera_reset_hog: camera-reset-hog {
+        gpio-hog;
+        gpios = <1 GPIO_ACTIVE_HIGH>;
+        output-high;
+        line-name = "camera-shared-reset";
+    };
+
 };
 
 &hailo_torrent_phy {
