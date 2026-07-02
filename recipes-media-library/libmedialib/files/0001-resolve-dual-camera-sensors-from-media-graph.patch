@@ -34,13 +34,13 @@ index 9ade243..21a73de 100644
 +{
 +#include <mediactl/mediactl.h>
 +}
- 
+
  #include "media_library/cloexec_fstream.hpp"
  #include "media_library_logger.hpp"
 @@ -14,6 +20,150 @@
- 
+
  #define MODULE_NAME LoggerType::Isp
- 
+
 +namespace
 +{
 +constexpr const char *MEDIA_DEVICE_PATH = "/dev/media0";
@@ -189,7 +189,7 @@ index 9ade243..21a73de 100644
  {
      initialize_resolutions();
 @@ -39,39 +189,51 @@ std::optional<SensorCapabilities> SensorRegistry::get_sensor_capabilities(Sensor
- 
+
  std::optional<SensorRegistry::SensorDeviceInfo> SensorRegistry::get_sensor_device_info(size_t sensor_index) const
  {
 -    for (const auto &entry : std::filesystem::directory_iterator("/sys/class/video4linux/"))
@@ -258,7 +258,7 @@ index 9ade243..21a73de 100644
 +
 +        return SensorDeviceInfo{sensor_type, bus, address, subdevice_path};
      }
- 
+
 +    LOGGER__MODULE__ERROR(
 +        MODULE_NAME,
 +        "Unsupported or malformed sensor entity '{}' for sensor index {}",
@@ -267,14 +267,14 @@ index 9ade243..21a73de 100644
 +
      return std::nullopt;
  }
- 
+
 diff --git a/hailo-media-library/meson.build b/hailo-media-library/meson.build
 index 388d8d9..13a7ea2 100644
 --- a/hailo-media-library/meson.build
 +++ b/hailo-media-library/meson.build
 @@ -30,6 +30,7 @@ gstv4l2_dep = dependency('gstvideo4linux2', required: true, include_type: 'syste
  gstreamer_deps = [gst_dep, gst_base_dep, gstvideo_dep, gst_app_dep, gstallocators_dep, gstv4l2_dep]
- 
+
  libiio_dep = dependency('libiio', version: '>=0.19', required: true)
 +libmediactl_dep = dependency('libmediactl', method: 'pkg-config', required: true, include_type: 'system')
  freetype_dep = dependency('freetype2', method: 'pkg-config', include_type: 'system')
