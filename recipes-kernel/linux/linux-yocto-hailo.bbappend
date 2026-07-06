@@ -29,3 +29,6 @@ do_configure:prepend() {
         echo "sysele already in DTS Makefile, skipping"
     fi
 }
+
+# Temporary display bring-up test: retry Raspberry Pi 7" panel Atmel ID read.
+SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch"
