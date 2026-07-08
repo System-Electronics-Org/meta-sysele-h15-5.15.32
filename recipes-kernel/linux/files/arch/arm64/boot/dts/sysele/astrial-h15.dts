@@ -6,7 +6,6 @@
 /dts-v1/;
 #include "../hailo/hailo15-base.dtsi"
 #include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/misc/hailo15_evb_cpld.h>
 
 / {
     memory {
@@ -39,14 +38,6 @@
 
 &i2c_1 {
     status = "ok";
-
-    cpld: cpld@11 {
-        compatible = "hailo,hailo15-evb-cpld";
-        reg = <0x11>;
-        board-config = <H15_EVB_CPLD_BOARD_CONFIG__TWO_CAMERAS_VPU>;
-        sysele,astrial-display-cpld-config;
-        status = "okay";
-    };
     sensor_csi0: camera-sensor@1a {
         status = "ok";
         compatible = "sony,imx334", "sony,imx675", "sony,imx678", "sony,imx715";
@@ -468,7 +459,6 @@
 };
 
 &pinctrl {
-    hailo,cpld = <&cpld>;
 
     pinctrl_eth: eth {
         pins = "eth_rgmii_tx_clk",
