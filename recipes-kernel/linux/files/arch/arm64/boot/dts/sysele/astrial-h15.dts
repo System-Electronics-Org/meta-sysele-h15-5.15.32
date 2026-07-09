@@ -423,7 +423,7 @@
 };
 
 &dpi0 {
-    status = "ok";
+    status = "disabled";
 };
 
 &dphy0 {
@@ -432,7 +432,7 @@
 
 
 &dsi0 {
-    status = "disabled";
+    status = "ok";
     ports {
         port@0 {
             reg = <0>;
