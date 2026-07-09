@@ -409,7 +409,7 @@
 	};	
 	
     lcd@45 {
-        status = "ok";
+        status = "disabled";
         compatible = "raspberrypi,7inch-touchscreen-panel";
         reg = <0x45>;
 	pinctrl-names = "default";
