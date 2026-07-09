@@ -1,0 +1,55 @@
+From: System Electronics <support@system-electronics.it>
+Subject: [PATCH] drm/hailo: trace DPI/DSI display pipeline
+
+Add temporary System Electronics trace prints to identify the last
+Hailo DPI/DSI/DRM callback reached before the Astrial H15 display
+reset issue.
+
+---
+--- a/drivers/gpu/drm/hailo/hailo_drv.c
++++ b/drivers/gpu/drm/hailo/hailo_drv.c
+@@ -1,4 +1,5 @@
+ #include <linux/clk.h>
++#include <linux/printk.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_runtime.h>
+ 
+@@ -99,6 +100,7 @@
+ 			      struct drm_crtc_state *crtc_state,
+ 			      struct drm_plane_state *plane_state)
+ {
++	pr_err("SYSELE_DPI_TRACE: hailo_pipe_enable ENTER\n");
+ 	struct drm_crtc *crtc = &pipe->crtc;
+ 	struct drm_device *drm = crtc->dev;
+ 	struct hailo_driver_device *priv = drm->dev_private;
+@@ -163,6 +165,7 @@
+ static void hailo_pipe_update(struct drm_simple_display_pipe *pipe,
+ 			      struct drm_plane_state *old_state)
+ {
++	pr_err("SYSELE_DPI_TRACE: hailo_pipe_update ENTER\n");
+ 	struct drm_plane_state *new_state = pipe->plane.state;
+ 	struct drm_framebuffer *fb = new_state->fb;
+ 	struct drm_gem_cma_object *cma_obj;
+@@ -199,6 +202,7 @@
+ 
+ static int driver_probe(struct platform_device *pdev)
+ {
++	pr_err("SYSELE_DPI_TRACE: driver_probe ENTER\n");
+ 	struct hailo_driver_device *priv;
+ 	struct drm_device *drm;
+ 	int ret;
+@@ -358,12 +362,14 @@
+ 
+ static int __init hailo_drm_init(void)
+ {
++	pr_err("SYSELE_DPI_TRACE: hailo_drm_init ENTER\n");
+ 	return platform_driver_register(&hailo_drm_driver);
+ }
+ module_init(hailo_drm_init);
+ 
+ static void __exit hailo_drm_exit(void)
+ {
++	pr_err("SYSELE_DPI_TRACE: hailo_drm_exit ENTER\n");
+ 	platform_driver_unregister(&hailo_drm_driver);
+ }
+ module_exit(hailo_drm_exit);

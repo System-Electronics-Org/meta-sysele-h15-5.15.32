@@ -31,4 +31,6 @@ do_configure:prepend() {
 }
 
 # Temporary display bring-up test: retry Raspberry Pi 7" panel Atmel ID read.
-SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch"
+SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch \
+    file://0002-rpi-touchscreen-lifecycle-trace.patch \
+    file://0003-hailo-dpi-drm-trace.patch"
