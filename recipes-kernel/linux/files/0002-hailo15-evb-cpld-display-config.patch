@@ -33,7 +33,7 @@ Signed-off-by: System Electronics <support@system-electronics.it>
          struct hailo15_evb_cpld_registers regs = {0};
          int ret;
  
-@@ -522,6 +524,28 @@ static int hailo15_evb_cpld_probe(struct i2c_client *client,
+@@ -522,6 +524,32 @@ static int hailo15_evb_cpld_probe(struct i2c_client *client,
                  return ret;
          }
  
