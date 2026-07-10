@@ -1,0 +1,37 @@
+From: System Electronics <support@system-electronics.it>
+Subject: [PATCH] misc: hailo15-evb-cpld: restore Astrial display config
+
+Restore the Astrial H15 display CPLD configuration write that was
+previously applied in the legacy Hailo15 CPLD pinctrl driver. In the
+new Hailo CPLD driver, the equivalent location is immediately after
+the board-config regmap write.
+
+---
+--- a/drivers/misc/hailo15-evb-cpld.c
++++ b/drivers/misc/hailo15-evb-cpld.c
+@@ -20,6 +20,8 @@
+ #define H15_CPLD_VERSION                        (0x0)
+ #define H15_CPLD_GPIO07_06_DIRECTION            (0x5)
+ #define H15_CPLD_BOARD_CONFIG                   (0x9)
++#define H15_CPLD_ASTRIAL_DISPLAY_CONFIG         (0x18)
++#define H15_CPLD_ASTRIAL_DISPLAY_CONFIG_VALUE   (0x04)
+ #define H15_CPLD_BOOTSTRAP_STATUS               (0xA)
+ #define H15_CPLD_POWER_STATUS_0                 (0xE)
+ #define H15_CPLD_RESET_STATUS_0                 (0x11)
+@@ -522,6 +524,16 @@
+                 return ret;
+         }
+ 
++        ret = regmap_write(cpld->regmap,
++                           H15_CPLD_ASTRIAL_DISPLAY_CONFIG,
++                           H15_CPLD_ASTRIAL_DISPLAY_CONFIG_VALUE);
++        if (ret < 0) {
++                dev_err(dev, "Error writing CPLD register 0x18\n");
++                return ret;
++        }
++
++        dev_info(dev, "Applied Astrial display CPLD config 0x18=0x04\n");
++
+         ret = hailo15_evb_cpld_get_registers(cpld, &regs);
+         if (ret < 0) {
+                 dev_err(dev, "Get CPLD registers failed with err: %d\n", ret);

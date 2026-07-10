@@ -6,6 +6,7 @@
 /dts-v1/;
 #include "../hailo/hailo15-base.dtsi"
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/misc/hailo15_evb_cpld.h>
 
 / {
     memory {
@@ -38,6 +39,13 @@
 
 &i2c_1 {
     status = "ok";
+
+    cpld: cpld@11 {
+        compatible = "hailo,hailo15-evb-cpld";
+        reg = <0x11>;
+        board-config = <H15_EVB_CPLD_BOARD_CONFIG__TWO_CAMERAS_VPU>;
+        status = "okay";
+    };
     ina231_1v8: 1v8@40 {
         compatible = "ti,ina231_precise";
         reg = <0x40>;
@@ -423,7 +431,7 @@
 };
 
 &dpi0 {
-    status = "disabled";
+    status = "ok";
 };
 
 &dphy0 {
@@ -444,6 +452,8 @@
 };
 
 &pinctrl {
+    hailo,cpld = <&cpld>;
+
 
     pinctrl_eth: eth {
         pins = "eth_rgmii_tx_clk",
