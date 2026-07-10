@@ -423,7 +423,7 @@
 };
 
 &dpi0 {
-    status = "disabled";
+    status = "ok";
 };
 
 &dphy0 {

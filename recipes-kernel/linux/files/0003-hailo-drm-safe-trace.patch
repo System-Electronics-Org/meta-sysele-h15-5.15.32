@@ -1,0 +1,54 @@
+From: System Electronics <support@system-electronics.it>
+Subject: [PATCH] drm/hailo: add safe display pipeline trace
+
+Add temporary declaration-safe trace prints around the Hailo DRM/DPI
+display path to locate the reset point.
+
+---
+--- a/drivers/gpu/drm/hailo/hailo_drv.c
++++ b/drivers/gpu/drm/hailo/hailo_drv.c
+@@ -1,4 +1,5 @@
+ #include <linux/clk.h>
++#include <linux/printk.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_runtime.h>
+ 
+@@ -103,6 +104,7 @@
+ 	struct drm_device *drm = crtc->dev;
+ 	struct hailo_driver_device *priv = drm->dev_private;
+ 	const struct drm_display_mode *mode = &crtc_state->mode;
++	pr_err("SYSELE_DRM_TRACE: hailo_pipe_enable ENTER\n");
+ 	uint32_t frame_size_in_8B_pulses, line_size_in_bytes,
+ 		line_size_in_8B_pulses, frame_duration_ns, frame_cycles;
+ 	unsigned long dsi_sys_clk;
+@@ -171,6 +173,7 @@
+ 	struct drm_device *drm = crtc->dev;
+ 	struct hailo_driver_device *priv = drm->dev_private;
+ 
++	pr_err("SYSELE_DRM_TRACE: hailo_pipe_update ENTER\n");
+ 	if (!fb) {
+ 		return;
+ 	}
+@@ -205,6 +208,7 @@
+ 	struct drm_panel *panel;
+ 	struct drm_bridge *bridge;
+ 
++	pr_err("SYSELE_DRM_TRACE: driver_probe ENTER\n");
+ 	priv = devm_drm_dev_alloc(&pdev->dev, &driver_drm_driver,
+ 				  struct hailo_driver_device, drm);
+ 	if (IS_ERR(priv)) {
+@@ -358,12 +362,14 @@
+ 
+ static int __init hailo_drm_init(void)
+ {
++	pr_err("SYSELE_DRM_TRACE: hailo_drm_init ENTER\n");
+ 	return platform_driver_register(&hailo_drm_driver);
+ }
+ module_init(hailo_drm_init);
+ 
+ static void __exit hailo_drm_exit(void)
+ {
++	pr_err("SYSELE_DRM_TRACE: hailo_drm_exit ENTER\n");
+ 	platform_driver_unregister(&hailo_drm_driver);
+ }
+ module_exit(hailo_drm_exit);
