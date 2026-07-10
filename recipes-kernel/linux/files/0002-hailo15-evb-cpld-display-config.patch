@@ -1,4 +1,6 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: System Electronics <support@system-electronics.it>
+Date: Fri, 10 Jul 2026 16:00:00 +0200
 Subject: [PATCH] misc: hailo15-evb-cpld: restore Astrial display config
 
 Restore the Astrial H15 display CPLD configuration write that was
@@ -6,31 +8,60 @@ previously applied in the legacy Hailo15 CPLD pinctrl driver. In the
 new Hailo CPLD driver, the equivalent location is immediately after
 the board-config regmap write.
 
+Make the write opt-in through the Astrial device tree. A failure of
+this display-only register must not prevent the CPLD and pinctrl
+drivers from probing, otherwise the SoC gpiochips disappear as a
+side effect and make diagnosis unnecessarily difficult.
+
+Signed-off-by: System Electronics <support@system-electronics.it>
 ---
 --- a/drivers/misc/hailo15-evb-cpld.c
 +++ b/drivers/misc/hailo15-evb-cpld.c
-@@ -20,6 +20,8 @@
+@@ -20,6 +20,7 @@
  #define H15_CPLD_VERSION                        (0x0)
  #define H15_CPLD_GPIO07_06_DIRECTION            (0x5)
  #define H15_CPLD_BOARD_CONFIG                   (0x9)
 +#define H15_CPLD_ASTRIAL_DISPLAY_CONFIG         (0x18)
-+#define H15_CPLD_ASTRIAL_DISPLAY_CONFIG_VALUE   (0x04)
  #define H15_CPLD_BOOTSTRAP_STATUS               (0xA)
  #define H15_CPLD_POWER_STATUS_0                 (0xE)
  #define H15_CPLD_RESET_STATUS_0                 (0x11)
-@@ -522,6 +524,16 @@
+@@ -494,6 +495,7 @@ static int hailo15_evb_cpld_probe(struct i2c_client *client,
+         struct device *dev = &client->dev;
+         struct hailo15_evb_cpld *cpld;
+         u32 board_config;
++        u32 display_config;
+         struct hailo15_evb_cpld_registers regs = {0};
+         int ret;
+ 
+@@ -522,6 +524,28 @@ static int hailo15_evb_cpld_probe(struct i2c_client *client,
                  return ret;
          }
  
-+        ret = regmap_write(cpld->regmap,
-+                           H15_CPLD_ASTRIAL_DISPLAY_CONFIG,
-+                           H15_CPLD_ASTRIAL_DISPLAY_CONFIG_VALUE);
-+        if (ret < 0) {
-+                dev_err(dev, "Error writing CPLD register 0x18\n");
-+                return ret;
-+        }
++        if (of_find_property(dev->of_node, "sysele,display-config", NULL)) {
++                ret = of_property_read_u32(dev->of_node,
++                                           "sysele,display-config",
++                                           &display_config);
++                if (ret) {
++                        dev_err(dev, "invalid 'sysele,display-config' property\n");
++                        return ret;
++                }
 +
-+        dev_info(dev, "Applied Astrial display CPLD config 0x18=0x04\n");
++                if (display_config > 0xff) {
++                        dev_err(dev, "invalid Astrial display config: 0x%x\n",
++                                display_config);
++                        return -EINVAL;
++                }
++
++                ret = regmap_write(cpld->regmap,
++                                   H15_CPLD_ASTRIAL_DISPLAY_CONFIG,
++                                   display_config);
++                if (ret < 0)
++                        dev_warn(dev, "unable to write Astrial display config: %d\n",
++                                 ret);
++                else
++                        dev_info(dev, "applied Astrial display config 0x18=0x%02x\n",
++                                 display_config);
++        }
 +
          ret = hailo15_evb_cpld_get_registers(cpld, &regs);
          if (ret < 0) {

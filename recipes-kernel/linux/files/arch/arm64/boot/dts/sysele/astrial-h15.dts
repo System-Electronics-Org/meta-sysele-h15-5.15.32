@@ -44,6 +44,7 @@
         compatible = "hailo,hailo15-evb-cpld";
         reg = <0x11>;
         board-config = <H15_EVB_CPLD_BOARD_CONFIG__TWO_CAMERAS_VPU>;
+        sysele,display-config = <0x04>;
         status = "okay";
     };
     ina231_1v8: 1v8@40 {
