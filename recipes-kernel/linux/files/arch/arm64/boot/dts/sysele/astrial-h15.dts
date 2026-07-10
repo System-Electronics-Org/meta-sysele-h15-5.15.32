@@ -453,9 +453,6 @@
 };
 
 &pinctrl {
-    hailo,cpld = <&cpld>;
-
-
     pinctrl_eth: eth {
         pins = "eth_rgmii_tx_clk",
                "eth_rgmii_tx_ctl",
@@ -582,6 +579,7 @@
 
 &hailo_usb3 {
     status = "okay";
+    hailo,force-drive-vbus;
 };
 
 &cdns_usb3 {

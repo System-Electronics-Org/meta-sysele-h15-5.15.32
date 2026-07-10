@@ -8,10 +8,10 @@ previously applied in the legacy Hailo15 CPLD pinctrl driver. In the
 new Hailo CPLD driver, the equivalent location is immediately after
 the board-config regmap write.
 
-Make the write opt-in through the Astrial device tree. A failure of
-this display-only register must not prevent the CPLD and pinctrl
-drivers from probing, otherwise the SoC gpiochips disappear as a
-side effect and make diagnosis unnecessarily difficult.
+Make the write opt-in through the Astrial device tree. If the generic
+EVB board-config write is rejected, still attempt the Astrial display
+register so the two operations can be diagnosed independently. Keep
+display-specific failures from masking the rest of the system.
 
 Signed-off-by: System Electronics <support@system-electronics.it>
 ---
@@ -33,9 +33,20 @@ Signed-off-by: System Electronics <support@system-electronics.it>
          struct hailo15_evb_cpld_registers regs = {0};
          int ret;
  
-@@ -522,6 +524,32 @@ static int hailo15_evb_cpld_probe(struct i2c_client *client,
-                 return ret;
+@@ -519,5 +521,10 @@ static int hailo15_evb_cpld_probe(struct i2c_client *client,
+         ret = regmap_write(cpld->regmap, H15_CPLD_BOARD_CONFIG, board_config);
+         if (ret < 0) {
+-                dev_err(dev, "Error in CPLD set board config\n");
+-                return ret;
++                if (!of_find_property(dev->of_node, "sysele,display-config", NULL)) {
++                        dev_err(dev, "Error in CPLD set board config\n");
++                        return ret;
++                }
++
++                dev_warn(dev, "unable to set CPLD board config: %d; continuing for Astrial\n",
++                         ret);
          }
+@@ -524,4 +531,30 @@ static int hailo15_evb_cpld_probe(struct i2c_client *client,
  
 +        if (of_find_property(dev->of_node, "sysele,display-config", NULL)) {
 +                ret = of_property_read_u32(dev->of_node,
