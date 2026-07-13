@@ -1,4 +1,4 @@
-From: System Electronics <support@system-electronics.it>
+From: System Electronics
 Date: Mon, 6 Jul 2026 16:45:00 +0200
 Subject: [PATCH] drm/panel: rpi-touchscreen: retry initial Atmel ID read
 

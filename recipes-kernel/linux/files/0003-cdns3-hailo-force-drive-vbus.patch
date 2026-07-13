@@ -1,0 +1,62 @@
+From: System Electronics
+Date: Fri, 10 Jul 2026 18:00:00 +0200
+Subject: [PATCH] usb: cdns3: hailo: optionally force DRIVE_VBUS high
+
+The Hailo Cadence glue driver defines the DRIVE_VBUS SFR and select
+bits but does not currently use them. Allow a board device tree to
+request that DRIVE_VBUS is forced high when the xHCI host starts.
+
+Program the SFR value before selecting the software override so the
+output cannot momentarily be driven low during the transition.
+
+This is opt-in because other Hailo boards may rely on the Cadence
+hardware state machine to control VBUS.
+
+Signed-off-by: System Electronics <support@system-electronics.it>
+---
+ drivers/usb/cdns3/cdns3-hailo.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/drivers/usb/cdns3/cdns3-hailo.c b/drivers/usb/cdns3/cdns3-hailo.c
+--- a/drivers/usb/cdns3/cdns3-hailo.c
++++ b/drivers/usb/cdns3/cdns3-hailo.c
+@@ -173,6 +173,7 @@ struct cdns_hailo {
+ 	struct reset_control *usb_rst;
+ 	struct reset_control *usb_apb_rst;
+ 	bool disconnected_overcurrent;
++	bool force_drive_vbus;
+ 	bool no_usb2_phy_avdd_core_power;
+ 	bool usb2_is_inactive;
+ 	struct irq_domain *irq_domain;
+@@ -376,6 +377,20 @@ static int cdns_hailo_xhci_init_quirk(struct usb_hcd *hcd)
+     write_u32_reg(hcd->regs, XEC_LPM_PRE_REG_10MS, 0x752ff);
+     write_u32_reg(hcd->regs, XEC_LPM_PRE_REG_100MS, 0x493dff);
+ 
++	if (data->force_drive_vbus) {
++		value = readl(&cdns->otg_cdnsp_regs->override);
++
++		/* Set the value before selecting the SFR override. */
++		value |= PORT_OVERRIDE_DRIVE_VBUS_SFR;
++		writel(value, &cdns->otg_cdnsp_regs->override);
++
++		value |= PORT_OVERRIDE_DRIVE_VBUS_SEL;
++		writel(value, &cdns->otg_cdnsp_regs->override);
++
++		dev_info(dev, "forcing DRIVE_VBUS high through the SFR override\n");
++	}
++
+ 	/* if overcurrent wire is disconnected, we have to override the overcurrent_n pin */
+ 	if (data->disconnected_overcurrent) {
+ 		value = readl(&cdns->otg_cdnsp_regs->override);
+@@ -863,6 +878,8 @@ static int cdns_hailo_probe(struct platform_device *pdev)
+ 		return PTR_ERR(data->pclk);
+ 
+ 	data->disconnected_overcurrent = of_property_read_bool(node, "disconnected-overcurrent");
++	data->force_drive_vbus =
++		of_property_read_bool(node, "hailo,force-drive-vbus");
+ 	data->no_usb2_phy_avdd_core_power = of_property_read_bool(node, "no-usb2-phy-avdd-core-power");
+ 	if (data->no_usb2_phy_avdd_core_power) {
+ 		dev_info(&pdev->dev, "Overriding VBUS validation since USB2 phy AVDD core power is not connected\n");
+-- 
+2.43.0
+

@@ -26,6 +26,7 @@ do_configure:prepend() {
     fi
 }
 
-# Raspberry Pi 7" display support for the Hailo 1.12 kernel.
+# Raspberry Pi 7" display support for the Hailo 1.12 kernel and vbus enabled.
 SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch \
-    file://0002-hailo15-evb-cpld-display-config.patch"
+    file://0002-hailo15-evb-cpld-display-config.patch \
+    file://0003-cdns3-hailo-force-drive-vbus.patch"

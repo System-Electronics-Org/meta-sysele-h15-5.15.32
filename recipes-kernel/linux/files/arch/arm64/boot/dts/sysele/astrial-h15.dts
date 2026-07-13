@@ -587,5 +587,5 @@
     phys = <&torrent_phy_usb3>;
     phy-names = "cdns3,usb3-phy";
     pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_usb_overcurrent_n_in>;
+    pinctrl-0 = <&pinctrl_usb_overcurrent_n_in>, <&pinctrl_usb_drive_vbus_out>;
 };
