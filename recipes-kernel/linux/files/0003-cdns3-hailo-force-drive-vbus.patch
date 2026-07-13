@@ -14,8 +14,8 @@ hardware state machine to control VBUS.
 
 Signed-off-by: System Electronics <support@system-electronics.it>
 ---
- drivers/usb/cdns3/cdns3-hailo.c | 17 +++++++++++++++++
- 1 file changed, 17 insertions(+)
+ drivers/usb/cdns3/cdns3-hailo.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
 
 diff --git a/drivers/usb/cdns3/cdns3-hailo.c b/drivers/usb/cdns3/cdns3-hailo.c
 --- a/drivers/usb/cdns3/cdns3-hailo.c
@@ -28,7 +28,7 @@ diff --git a/drivers/usb/cdns3/cdns3-hailo.c b/drivers/usb/cdns3/cdns3-hailo.c
  	bool no_usb2_phy_avdd_core_power;
  	bool usb2_is_inactive;
  	struct irq_domain *irq_domain;
-@@ -376,6 +377,20 @@ static int cdns_hailo_xhci_init_quirk(struct usb_hcd *hcd)
+@@ -373,6 +374,19 @@ static int cdns_hailo_xhci_init_quirk(struct usb_hcd *hcd)
      write_u32_reg(hcd->regs, XEC_LPM_PRE_REG_10MS, 0x752ff);
      write_u32_reg(hcd->regs, XEC_LPM_PRE_REG_100MS, 0x493dff);
  
@@ -48,7 +48,7 @@ diff --git a/drivers/usb/cdns3/cdns3-hailo.c b/drivers/usb/cdns3/cdns3-hailo.c
  	/* if overcurrent wire is disconnected, we have to override the overcurrent_n pin */
  	if (data->disconnected_overcurrent) {
  		value = readl(&cdns->otg_cdnsp_regs->override);
-@@ -863,6 +878,8 @@ static int cdns_hailo_probe(struct platform_device *pdev)
+@@ -863,6 +877,8 @@ static int cdns_hailo_probe(struct platform_device *pdev)
  		return PTR_ERR(data->pclk);
  
  	data->disconnected_overcurrent = of_property_read_bool(node, "disconnected-overcurrent");
@@ -59,4 +59,3 @@ diff --git a/drivers/usb/cdns3/cdns3-hailo.c b/drivers/usb/cdns3/cdns3-hailo.c
  		dev_info(&pdev->dev, "Overriding VBUS validation since USB2 phy AVDD core power is not connected\n");
 -- 
 2.43.0
-

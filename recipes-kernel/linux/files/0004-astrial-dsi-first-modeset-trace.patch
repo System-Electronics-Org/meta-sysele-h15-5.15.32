@@ -1,0 +1,321 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: System Electronics <support@system-electronics.it>
+Date: Mon, 13 Jul 2026 12:00:00 +0200
+Subject: [PATCH] drm: add Astrial DSI first-modeset trace markers
+
+The Astrial H15 resets during the first DRM modeset when the Raspberry
+Pi touchscreen is connected. Add emergency-level markers around the
+panel power sequence, Cadence DSI link/PHY enable and Hailo scanout
+start. The last marker visible on the serial console identifies the
+operation after which power is lost.
+
+This is intentionally a diagnostic patch and should be removed once the
+reset stage has been isolated.
+
+Signed-off-by: System Electronics <support@system-electronics.it>
+---
+ drivers/gpu/drm/bridge/cdns-dsi.c                    | 21 +++++++++++++++++++++
+ drivers/gpu/drm/hailo/hailo_drv.c                    | 12 ++++++++++++
+ drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c | 20 ++++++++++++++++++++
+ 3 files changed, 53 insertions(+)
+
+diff --git a/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c b/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
+--- a/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
++++ b/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
+@@ -270,31 +270,44 @@ static int rpi_touchscreen_prepare(struct drm_panel *panel)
+ {
+ 	struct rpi_touchscreen *ts = panel_to_ts(panel);
+ 	int i;
+ 
++	dev_emerg(&ts->i2c->dev,
++		  "ASTRIAL-DSI-TRACE: panel prepare enter\n");
++
+ 	rpi_touchscreen_i2c_write(ts, REG_POWERON, 1);
++	dev_emerg(&ts->i2c->dev,
++		  "ASTRIAL-DSI-TRACE: panel REG_POWERON=1 returned\n");
+ 	/* Wait for nPWRDWN to go low to indicate poweron is done. */
+ 	for (i = 0; i < 100; i++) {
+ 		if (rpi_touchscreen_i2c_read(ts, REG_PORTB) & 1)
+ 			break;
+ 	}
+ 
++	dev_emerg(&ts->i2c->dev,
++		  "ASTRIAL-DSI-TRACE: panel power poll complete (%d iterations)\n",
++		  i);
++
+ 	rpi_touchscreen_write(ts, DSI_LANEENABLE,
+ 			      DSI_LANEENABLE_CLOCK |
+ 			      DSI_LANEENABLE_D0);
+ 	rpi_touchscreen_write(ts, PPI_D0S_CLRSIPOCOUNT, 0x05);
+ 	rpi_touchscreen_write(ts, PPI_D1S_CLRSIPOCOUNT, 0x05);
+ 	rpi_touchscreen_write(ts, PPI_D0S_ATMR, 0x00);
+ 	rpi_touchscreen_write(ts, PPI_D1S_ATMR, 0x00);
+ 	rpi_touchscreen_write(ts, PPI_LPTXTIMECNT, 0x03);
+ 
+ 	rpi_touchscreen_write(ts, SPICMR, 0x00);
+ 	rpi_touchscreen_write(ts, LCDCTRL, 0x00100150);
+ 	rpi_touchscreen_write(ts, SYSCTRL, 0x040f);
++	dev_emerg(&ts->i2c->dev,
++		  "ASTRIAL-DSI-TRACE: panel TC358762 programmed\n");
+ 	msleep(100);
+ 
+ 	rpi_touchscreen_write(ts, PPI_STARTPPI, 0x01);
+ 	rpi_touchscreen_write(ts, DSI_STARTDSI, 0x01);
+ 	msleep(100);
++	dev_emerg(&ts->i2c->dev,
++		  "ASTRIAL-DSI-TRACE: panel prepare complete\n");
+ 
+ 	return 0;
+ }
+@@ -303,15 +316,22 @@ static int rpi_touchscreen_enable(struct drm_panel *panel)
+ {
+ 	struct rpi_touchscreen *ts = panel_to_ts(panel);
+ 
++	dev_emerg(&ts->i2c->dev,
++		  "ASTRIAL-DSI-TRACE: panel enable enter\n");
++
+ 	/* Turn on the backlight. */
+ 	rpi_touchscreen_i2c_write(ts, REG_PWM, 255);
++	dev_emerg(&ts->i2c->dev,
++		  "ASTRIAL-DSI-TRACE: panel REG_PWM=255 returned\n");
+ 
+ 	/* Default to the same orientation as the closed source
+ 	 * firmware used for the panel.  Runtime rotation
+ 	 * configuration will be supported using VC4's plane
+ 	 * orientation bits.
+ 	 */
+ 	rpi_touchscreen_i2c_write(ts, REG_PORTA, BIT(2));
++	dev_emerg(&ts->i2c->dev,
++		  "ASTRIAL-DSI-TRACE: panel enable complete\n");
+ 
+ 	return 0;
+ }
+diff --git a/drivers/gpu/drm/bridge/cdns-dsi.c b/drivers/gpu/drm/bridge/cdns-dsi.c
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -714,35 +714,45 @@ static void cdns_dsi_hs_init(struct cdns_dsi *dsi)
+ {
+ 	struct cdns_dsi_output *output = &dsi->output;
+ 	u32 status;
+ 	
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI HS init enter\n");
++
+ 	if (dsi->phy_initialized)
+ 		return;
+ 
+ 	/*
+ 	 * Power all internal DPHY blocks down and maintain their reset line
+ 	 * asserted before changing the DPHY config.
+ 	 */
+ 	writel(DPHY_CMN_PSO | DPHY_PLL_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN |
+ 	       DPHY_CMN_PDN | DPHY_PLL_PDN,
+ 	       dsi->regs + MCTL_DPHY_CFG0);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI DPHY held down\n");
+ 
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI phy_init begin\n");
+ 	phy_init(dsi->dphy);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI phy_init returned\n");
+ 	phy_set_mode(dsi->dphy, PHY_MODE_MIPI_DPHY);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI phy_set_mode returned\n");
+ 	phy_configure(dsi->dphy, &output->phy_opts);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI phy_configure returned\n");
+ 	phy_power_on(dsi->dphy);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI phy_power_on returned\n");
+ 
+ 	/* Activate the PLL and wait until it's locked. */
+ 	writel(PLL_LOCKED, dsi->regs + MCTL_MAIN_STS_CLR);
+ 	writel(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN,
+ 	       dsi->regs + MCTL_DPHY_CFG0);
+ 	WARN_ON_ONCE(readl_poll_timeout(dsi->regs + MCTL_MAIN_STS, status,
+ 					status & PLL_LOCKED, 100, 100));
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI PLL poll returned\n");
+ 	/* De-assert data and clock reset lines. */
+ 	writel(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN |
+ 	       DPHY_D_RSTB(output->dev->lanes) | DPHY_C_RSTB,
+ 	       dsi->regs + MCTL_DPHY_CFG0);
+ 
+ 	dsi->phy_initialized = true;
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI HS init complete\n");
+ }
+ 
+ static void cdns_dsi_init_link(struct cdns_dsi *dsi)
+@@ -752,33 +762,36 @@ static void cdns_dsi_init_link(struct cdns_dsi *dsi)
+ 	u32 val;
+ 	int i;
+ 
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI link init enter\n");
+ 	if (dsi->link_initialized)
+ 		return;
+ 
+ 	val = 0;
+ 	for (i = 1; i < output->dev->lanes; i++)
+ 		val |= DATA_LANE_EN(i);
+ 
+ 	if (!(output->dev->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS))
+ 		val |= CLK_CONTINUOUS;
+ 
+ 	writel(val, dsi->regs + MCTL_MAIN_PHY_CTL);
+ 
+ 	/* ULPOUT should be set to 1ms and is expressed in sysclk cycles. */
+ 	sysclk_period = NSEC_PER_SEC / clk_get_rate(dsi->dsi_sys_clk);
+ 	ulpout = DIV_ROUND_UP(NSEC_PER_MSEC, sysclk_period);
+ 	writel(CLK_LANE_ULPOUT_TIME(ulpout) | DATA_LANE_ULPOUT_TIME(ulpout),
+ 	       dsi->regs + MCTL_ULPOUT_TIME);
+ 
+ 	writel(LINK_EN, dsi->regs + MCTL_MAIN_DATA_CTL);
+ 
+ 	val = CLK_LANE_EN | PLL_START;
+ 	for (i = 0; i < output->dev->lanes; i++)
+ 		val |= DATA_LANE_START(i);
+ 
+ 	writel(val, dsi->regs + MCTL_MAIN_EN);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI link start written\n");
+ 
+ 	dsi->link_initialized = true;
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI link init complete\n");
+ }
+ 
+ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
+@@ -793,20 +806,23 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
+ 	u32 tmp, reg_wakeup, div;
+ 	int nlanes;
+ 
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI bridge enable enter\n");
+ 	if (WARN_ON(pm_runtime_get_sync(dsi->base.dev) < 0))
+ 		return;
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI runtime PM active\n");
+ 
+ 	mode = &bridge->encoder->crtc->state->adjusted_mode;
+ 	nlanes = output->dev->lanes;
+ 
+ 	WARN_ON_ONCE(cdns_dsi_check_conf(dsi, mode, &dsi_cfg, false));
+ 
+ 	cdns_dsi_hs_init(dsi);
+ 	cdns_dsi_init_link(dsi);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI HS/link ready\n");
+ 
+ 	writel(HBP_LEN(dsi_cfg.hbp) | HSA_LEN(dsi_cfg.hsa),
+ 	       dsi->regs + VID_HSIZE1);
+ 	writel(HFP_LEN(dsi_cfg.hfp) | HACT_LEN(dsi_cfg.hact),
+ 	       dsi->regs + VID_HSIZE2);
+ 
+ 	writel(VBP_LEN(mode->crtc_vtotal - mode->crtc_vsync_end - 1) |
+@@ -915,36 +931,39 @@ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
+ 	if (dsi->tvg_mode_enable) {
+ 		tmp |= TVG_SEL;
+ 	}
+ 
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI video enable write begin\n");
+ 	writel(tmp, dsi->regs + MCTL_MAIN_DATA_CTL);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI video enable write returned\n");
+ 
+ 	if (dsi->tvg_mode_enable) {
+ 		tmp = TVG_STRIPE_SIZE(0x7) | TVG_MODE_HSTRIPES | TVG_STOPMODE_EOF;
+ 		writel(tmp, dsi->regs + TVG_CTL);
+ 
+ 		tmp = TVG_COL1_RED(0xfff) | TVG_COL1_GREEN(0xfff);
+ 		writel(tmp, dsi->regs + TVG_COLOR1);
+ 
+ 		tmp = TVG_COL1_BLUE(0xfff);
+ 		writel(tmp, dsi->regs + TVG_COLOR1_BIS);
+ 
+ 		tmp = TVG_COL2_RED(0x0) | TVG_COL2_GREEN(0x0);
+ 		writel(tmp, dsi->regs + TVG_COLOR2);
+ 
+ 		tmp = TVG_COL2_BLUE(0xfff);
+ 		writel(tmp, dsi->regs + TVG_COLOR2_BIS);
+ 
+ 		tmp = TVG_LINE_SIZE(dsi_cfg.hact) | TVG_NBLINES(mode->crtc_vdisplay);
+ 		writel(tmp, dsi->regs + TVG_IMG_SIZE);
+ 
+ 		tmp = readl(dsi->regs + TVG_CTL);
+ 		tmp |= TVG_RUN;
+ 		writel(tmp, dsi->regs + TVG_CTL);
+ 	}
+ 	else {
+ 		tmp = readl(dsi->regs + MCTL_MAIN_EN) | IF_EN(input->id);
+ 		writel(tmp, dsi->regs + MCTL_MAIN_EN);
+ 	}
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI bridge enable complete\n");
+ }
+ 
+ static void cdns_dsi_bridge_pre_enable(struct drm_bridge *bridge)
+@@ -952,11 +971,13 @@ static void cdns_dsi_bridge_pre_enable(struct drm_bridge *bridge)
+ 	struct cdns_dsi_input *input = bridge_to_cdns_dsi_input(bridge);
+ 	struct cdns_dsi *dsi = input_to_dsi(input);
+ 
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI bridge pre-enable enter\n");
+ 	if (WARN_ON(pm_runtime_get_sync(dsi->base.dev) < 0))
+ 		return;
+ 
+ 	cdns_dsi_init_link(dsi);
+ 	cdns_dsi_hs_init(dsi);
++	dev_emerg(dsi->base.dev, "ASTRIAL-DSI-TRACE: DSI bridge pre-enable complete\n");
+ }
+ 
+ static void cdns_dsi_bridge_post_disable(struct drm_bridge *bridge)
+diff --git a/drivers/gpu/drm/hailo/hailo_drv.c b/drivers/gpu/drm/hailo/hailo_drv.c
+--- a/drivers/gpu/drm/hailo/hailo_drv.c
++++ b/drivers/gpu/drm/hailo/hailo_drv.c
+@@ -111,8 +111,10 @@ static void hailo_pipe_enable(struct drm_simple_display_pipe *pipe,
+ 	dsi_sys_clk = clk_get_rate(priv->dsi_sys_clk);
+ 	refresh = drm_mode_vrefresh(mode);
++	dev_emerg(drm->dev, "ASTRIAL-DSI-TRACE: Hailo pipe enable %ux%u@%d enter\n",
++		  mode->hdisplay, mode->vdisplay, refresh);
+ 	line_size_in_bytes = mode->hdisplay * SUPPORTED_BYTES_PER_PIXEL;
+ 	line_size_in_8B_pulses = line_size_in_bytes / 8;
+ 	frame_size_in_8B_pulses = (line_size_in_bytes * mode->vdisplay) / 8;
+ 	frame_duration_ns = ktime_divns(NSEC_PER_SEC, refresh);
+ 	frame_cycles = dsi_sys_clk / refresh;
+ 
+@@ -153,11 +155,15 @@ static void hailo_pipe_enable(struct drm_simple_display_pipe *pipe,
+ 	// frame_cycles = dsi_sys_clk / refresh = 600 MHz / 60 = 10M
+ 	writel(10000000, priv->regs + DPM_9);
+ 	writel(10000000, priv->regs + HEADER_4);
+ 
++	dev_emerg(drm->dev, "ASTRIAL-DSI-TRACE: Hailo stream start write begin\n");
+ 	writel(CFG_HA_STREAM_START, priv->regs + HA_STREAM_START_EXT_DATA_OUT);
++	dev_emerg(drm->dev, "ASTRIAL-DSI-TRACE: Hailo stream start write returned\n");
+ 
++	dev_emerg(drm->dev, "ASTRIAL-DSI-TRACE: Hailo GO scanout write begin\n");
+ 	writel(CFG_GO_SCANOUT_FRAMEBUFFER,
+ 	       priv->regs + GO_SCANOUT_FRAMEBUFFER_EXT_DATA_OUT);
++	dev_emerg(drm->dev, "ASTRIAL-DSI-TRACE: Hailo GO scanout write returned\n");
+ }
+ 
+ static void hailo_pipe_update(struct drm_simple_display_pipe *pipe,
+@@ -178,11 +184,13 @@ static void hailo_pipe_update(struct drm_simple_display_pipe *pipe,
+ 	cma_obj = drm_fb_cma_get_gem_obj(fb, 0);
+ 	if (!cma_obj)
+ 		return;
+ 
+ 	dma_addr = cma_obj->paddr;
+ 
++	dev_emerg(drm->dev, "ASTRIAL-DSI-TRACE: Hailo framebuffer address write begin\n");
+ 	writel(CFG_PLANE_0_PHYSICAL_BASE_ADD_NEXT(dma_addr),
+ 	       priv->regs + PLANE_0_PHYSICAL_BASE_ADD_NEXT_EXT_DATA_OUT);
++	dev_emerg(drm->dev, "ASTRIAL-DSI-TRACE: Hailo framebuffer address write returned\n");
+ }
+ 
+ static const struct drm_simple_display_pipe_funcs hailo_pipe_funcs = {
+@@ -288,14 +296,18 @@ static int driver_probe(struct platform_device *pdev)
+ 	drm_mode_config_reset(drm);
+ 
+ 	platform_set_drvdata(pdev, drm);
+ 
++	dev_emerg(&pdev->dev, "ASTRIAL-DSI-TRACE: drm_dev_register begin\n");
+ 	ret = drm_dev_register(drm, 0);
+ 	if (ret) {
+ 		dev_err(&pdev->dev, "failed to register drm device\n");
+ 		goto err_disable_clks;
+ 	}
++	dev_emerg(&pdev->dev, "ASTRIAL-DSI-TRACE: drm_dev_register returned\n");
+ 
++	dev_emerg(&pdev->dev, "ASTRIAL-DSI-TRACE: drm_fbdev_generic_setup begin\n");
+ 	drm_fbdev_generic_setup(drm, SUPPORTED_BYTES_PER_PIXEL * 8);
++	dev_emerg(&pdev->dev, "ASTRIAL-DSI-TRACE: drm_fbdev_generic_setup returned\n");
+ 
+ 	return 0;
+ 
+-- 
+2.43.0
