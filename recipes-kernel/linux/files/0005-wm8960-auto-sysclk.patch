@@ -18,17 +18,53 @@ diff --git a/sound/soc/codecs/wm8960.c b/sound/soc/codecs/wm8960.c
 index 499604f..01a0694 100644
 --- a/sound/soc/codecs/wm8960.c
 +++ b/sound/soc/codecs/wm8960.c
-@@ -128,0 +129 @@ struct wm8960_priv {
+@@ -123,12 +123,13 @@ struct wm8960_priv {
+ 	int (*set_bias_level)(struct snd_soc_component *,
+ 			      enum snd_soc_bias_level level);
+ 	struct snd_soc_dapm_widget *lout1;
+ 	struct snd_soc_dapm_widget *rout1;
+ 	struct snd_soc_dapm_widget *out3;
+ 	bool deemph;
 +	bool sysclk_auto;
-@@ -1292,0 +1294,5 @@ static int wm8960_set_dai_sysclk(struct snd_soc_dai *dai, int clk_id,
+ 	int lrclk;
+ 	int bclk;
+ 	int sysclk;
+ 	int clk_id;
+ 	int freq_in;
+ 	bool is_stream_in_use[2];
+@@ -1287,12 +1288,17 @@ static int wm8960_set_dai_sysclk(struct snd_soc_dai *dai, int clk_id,
+ {
+ 	struct snd_soc_component *component = dai->component;
+ 	struct wm8960_priv *wm8960 = snd_soc_component_get_drvdata(component);
+ 
+ 	switch (clk_id) {
+ 	case WM8960_SYSCLK_MCLK:
 +		if (wm8960->sysclk_auto) {
 +			wm8960->freq_in = freq;
 +			clk_id = WM8960_SYSCLK_AUTO;
 +			break;
 +		}
-@@ -1415,0 +1422,5 @@ static int wm8960_i2c_probe(struct i2c_client *i2c,
+ 		snd_soc_component_update_bits(component, WM8960_CLOCK1,
+ 					0x1, WM8960_SYSCLK_MCLK);
+ 		break;
+ 	case WM8960_SYSCLK_PLL:
+ 		snd_soc_component_update_bits(component, WM8960_CLOCK1,
+ 					0x1, WM8960_SYSCLK_PLL);
+@@ -1410,12 +1416,17 @@ static int wm8960_i2c_probe(struct i2c_client *i2c,
+ 
+ 	wm8960 = devm_kzalloc(&i2c->dev, sizeof(struct wm8960_priv),
+ 			      GFP_KERNEL);
+ 	if (wm8960 == NULL)
+ 		return -ENOMEM;
+ 
 +	if (i2c->dev.of_node)
 +		wm8960->sysclk_auto =
 +			of_property_read_bool(i2c->dev.of_node,
 +					      "wlf,sysclk-auto");
 +
+ 	wm8960->mclk = devm_clk_get(&i2c->dev, "mclk");
+ 	if (IS_ERR(wm8960->mclk)) {
+ 		if (PTR_ERR(wm8960->mclk) == -EPROBE_DEFER)
+ 			return -EPROBE_DEFER;
+ 	}
+ 
