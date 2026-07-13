@@ -30,3 +30,7 @@ do_configure:prepend() {
 SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch \
     file://0003-cdns3-hailo-force-drive-vbus.patch \
     file://0004-astrial-dsi-first-modeset-trace.patch"
+
+# WM8960 codec support for the Astrial H15 custom carrier.
+SRC_URI:append = " file://0005-wm8960-auto-sysclk.patch \
+    file://wm8960.cfg"

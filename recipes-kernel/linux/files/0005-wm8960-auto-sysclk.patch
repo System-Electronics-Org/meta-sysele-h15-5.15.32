@@ -1,0 +1,34 @@
+From: System Electronics <info@systemelectronics.com>
+Date: Mon, 13 Jul 2026 12:00:00 +0200
+Subject: [PATCH] ASoC: wm8960: add opt-in automatic MCLK/PLL selection
+
+Allow boards using simple-audio-card to request the WM8960 automatic
+clock-selection mode through the wlf,sysclk-auto device-tree property.
+
+This lets the codec first try the external MCLK directly and fall back
+to its internal PLL when that clock cannot generate the requested audio
+sample rate.
+
+The behaviour is opt-in and therefore does not affect existing WM8960
+users.
+
+Signed-off-by: System Electronics <info@systemelectronics.com>
+---
+diff --git a/sound/soc/codecs/wm8960.c b/sound/soc/codecs/wm8960.c
+index 499604f..01a0694 100644
+--- a/sound/soc/codecs/wm8960.c
++++ b/sound/soc/codecs/wm8960.c
+@@ -128,0 +129 @@ struct wm8960_priv {
++	bool sysclk_auto;
+@@ -1292,0 +1294,5 @@ static int wm8960_set_dai_sysclk(struct snd_soc_dai *dai, int clk_id,
++		if (wm8960->sysclk_auto) {
++			wm8960->freq_in = freq;
++			clk_id = WM8960_SYSCLK_AUTO;
++			break;
++		}
+@@ -1415,0 +1422,5 @@ static int wm8960_i2c_probe(struct i2c_client *i2c,
++	if (i2c->dev.of_node)
++		wm8960->sysclk_auto =
++			of_property_read_bool(i2c->dev.of_node,
++					      "wlf,sysclk-auto");
++
