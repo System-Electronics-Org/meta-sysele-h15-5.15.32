@@ -391,6 +391,51 @@
         clock-frequency = <24000000>;
         clock-output-names = "wm8960-mclk";
     };
+
+    /*
+     * TEMPORARY BRING-UP WORKAROUND - NOT FOR PERMANENT PRODUCTION USE.
+     *
+     * The current custom carrier swaps the two Astrial I2C3 pins:
+     *
+     * GPIO6 is connected to the physical SCL net.
+     * GPIO7 is connected to the physical SDA net.
+     *
+     * Use a GPIO-bitbanged bus only to validate the WM8960 and the
+     * surrounding audio hardware on this carrier revision.
+     *
+     * The permanent hardware solution is to route GPIO6 to SDA and
+     * GPIO7 to SCL, then restore the hardware I2C3 controller.
+     */
+    i2c_audio: i2c-audio {
+        compatible = "i2c-gpio";
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        scl-gpios = <&gpio0 6
+            (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+        sda-gpios = <&gpio0 7
+            (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+
+        /*
+         * A 5 us delay gives a nominal bus rate around 100 kHz,
+         * sufficient for codec configuration and conservative for
+         * the first board bring-up.
+         */
+        i2c-gpio,delay-us = <5>;
+        i2c-gpio,timeout-ms = <100>;
+
+        codec_wm8960: codec@1a {
+            compatible = "wlf,wm8960";
+            reg = <0x1a>;
+            #sound-dai-cells = <0>;
+
+            clocks = <&audio_mclk>;
+            clock-names = "mclk";
+
+            wlf,shared-lrclk;
+            wlf,sysclk-auto;
+        };
+    };
 };
 
 &sdio0_reserved {
@@ -402,32 +447,11 @@
 };
 
 &i2c_3 {
-    status = "ok";
-    clock-frequency = <400000>;
-    pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_i2c3_audio>;
-
-    codec_wm8960: codec@1a {
-        compatible = "wlf,wm8960";
-        reg = <0x1a>;
-        #sound-dai-cells = <0>;
-
-        clocks = <&audio_mclk>;
-        clock-names = "mclk";
-
-        /*
-         * ADCLRC and DACLRC are connected to the same I2S_WS signal
-         * on the custom carrier.
-         */
-        wlf,shared-lrclk;
-
-        /*
-         * The carrier provides a fixed 24 MHz MCLK. Allow the codec
-         * driver to use its internal PLL when direct division cannot
-         * generate the requested sample rate.
-         */
-        wlf,sysclk-auto;
-    };
+    /*
+     * Temporarily disabled for the audio hardware validation workaround.
+     * Restore this controller after correcting the carrier SDA/SCL routing.
+     */
+    status = "disabled";
 };
 
 &i2c_2 {
@@ -515,11 +539,6 @@
         groups = "i2c2_1_grp";
     };
 
-    pinctrl_i2c3_audio: i2c3-audio {
-        function = "i2c3";
-        groups = "i2c3_0_grp";
-    };
-
     pinctrl_i2c0_current_src_en_out: i2c0_current_src_en_out {
         function = "i2c0_current_src_en_out";
         groups = "i2c0_current_src_en_out_3_grp";
@@ -578,7 +597,7 @@
 
 #define GPIO_LINE_NAMES \
     "SPI_CS2",                  "SPI_CS3",                  "DSI_RST",                  "CAM_TRIG", \
-    "cam0_reset_n",             "cam1_reset_n",             "i2c3_sda_in_out",          "i2c3_scl_out", \
+    "cam0_reset_n",             "cam1_reset_n",             "audio_i2c_scl",            "audio_i2c_sda", \
     "gpio_in_out_8",            "sdio0_gp_in",              "sdio0_cd_in",              "usb_overcurrent_n_in", \
     "usb_drive_vbus_out",       "sdio1_gp_in",              "sdio1_cd_in_n",            "RVSD", \
     \
