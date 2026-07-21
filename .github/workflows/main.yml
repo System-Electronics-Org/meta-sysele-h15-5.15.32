@@ -131,6 +131,42 @@ jobs:
             exit 1
           fi
 
+      - name: Collect Failed Task Logs
+        if: failure()
+        run: |
+          set +e
+          mkdir -p failure-logs
+
+          # Bitbake scrive nel cooker log il path esatto dei log falliti
+          grep -h "Logfile of failure stored in:" \
+            meta-hailo-soc/build/tmp/log/cooker/*/console-latest.log \
+            | sed 's/.*stored in: //' | sort -u > /tmp/failed-logs.txt
+
+          if [ ! -s /tmp/failed-logs.txt ]; then
+            echo "Nessun 'Logfile of failure' trovato; raccolgo i log.do_* più recenti"
+            find meta-hailo-soc/build/tmp/work -path '*/temp/log.do_*' \
+              -newermt '-3 hours' > /tmp/failed-logs.txt
+          fi
+
+          while read -r f; do
+            [ -f "$f" ] || continue
+            name=$(echo "$f" | sed 's|.*/tmp/work/||; s|/|_|g')
+            cp "$f" "failure-logs/$name"
+            # copia anche lo script run.do_* corrispondente
+            run="${f/log.do_/run.do_}"
+            [ -f "$run" ] && cp "$run" "failure-logs/${name/log.do_/run.do_}"
+          done < /tmp/failed-logs.txt
+
+          # scrub di sicurezza: lo step di pulizia non gira in caso di failure
+          grep -rlE "PRIVATE KEY|BEGIN .*KEY" failure-logs/ | xargs -r rm -f
+
+          echo "--- raccolti ---"
+          ls -la failure-logs/
+          echo "--- ultime 100 righe di ogni log ---"
+          for f in failure-logs/log.*; do
+            echo "===== $f ====="; tail -n 100 "$f"
+          done
+          
       - name: Clean Sensitive Files Before Archiving
         run: |
           # Remove any private key files that might have been copied or generated during build
@@ -222,6 +258,7 @@ jobs:
           path: |
             meta-hailo-soc/build/tmp/log/
             meta-hailo-soc/build/buildhistory/
+            failure-logs/
           if-no-files-found: warn
 
       - name: Download Build Artifacts for Release
