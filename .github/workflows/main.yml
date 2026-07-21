@@ -111,9 +111,17 @@ jobs:
         run: |
           cd meta-hailo-soc
           
+          # --- limiti di sistema: pseudo apre molti fd, uno per client ---
+          ulimit -n 65536 || echo "WARN: impossibile alzare il limite fd"
+          echo "fd limit: $(ulimit -n) | cpu: $(nproc) | tar: $(tar --version | head -1)"
+
           # Set environment variables for network isolation
           export BB_ISOLATE_NETWORK=0
           export BB_NO_NETWORK=0
+          
+          # --- tetto ai task concorrenti ---
+          export BB_NUMBER_THREADS=16
+          export PARALLEL_MAKE="-j 16"
           
           # CI-specific build optimizations - reduce log verbosity
           export BITBAKE_UI_OPTS="-k"
@@ -178,6 +186,17 @@ jobs:
             echo "===== $f ====="
             tail -n 120 "$f"
           done
+          
+          echo "===== ambiente ====="
+          nproc; ulimit -n; ulimit -u; tar --version | head -1
+
+          echo "===== pseudo.log ====="
+          find "$BUILD/tmp/work" -name 'pseudo.log' -newermt '-6 hours' \
+            | head -20 | while read -r p; do
+              echo "----- $p -----"
+              tail -n 60 "$p"
+              cp "$p" "failure-logs/$(printf '%s' "$p" | sed 's|.*/tmp/work/||; s|/|_|g')"
+            done
 
           exit 0
           
