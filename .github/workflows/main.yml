@@ -131,41 +131,55 @@ jobs:
             exit 1
           fi
 
-      - name: Collect Failed Task Logs
+      - name: Collect Failed Task Logs        
         if: failure()
         run: |
           set +e
+          BUILD=meta-hailo-soc/build
           mkdir -p failure-logs
 
-          # Bitbake scrive nel cooker log il path esatto dei log falliti
-          grep -h "Logfile of failure stored in:" \
-            meta-hailo-soc/build/tmp/log/cooker/*/console-latest.log \
-            | sed 's/.*stored in: //' | sort -u > /tmp/failed-logs.txt
+          echo "===== ultime 200 righe del cooker log ====="
+          COOKER=$(ls -t "$BUILD"/tmp/log/cooker/*/console-latest.log 2>/dev/null | head -1)
+          [ -n "$COOKER" ] && tail -n 200 "$COOKER" || echo "(nessun cooker log)"
 
-          if [ ! -s /tmp/failed-logs.txt ]; then
-            echo "Nessun 'Logfile of failure' trovato; raccolgo i log.do_* più recenti"
-            find meta-hailo-soc/build/tmp/work -path '*/temp/log.do_*' \
-              -newermt '-3 hours' > /tmp/failed-logs.txt
+          echo "===== spazio disco / memoria ====="
+          df -h; free -h
+
+          # 1) path dichiarati da bitbake
+          find "$BUILD/tmp/log" -name '*.log' -exec \
+            grep -h "Logfile of failure stored in:" {} + 2>/dev/null \
+            | sed 's/.*stored in: //' | tr -d '\r' | sort -u > /tmp/failed.txt
+
+          # 2) fallback: solo i log.do_* che contengono un errore VERO
+          if [ ! -s /tmp/failed.txt ]; then
+            echo "Nessun 'Logfile of failure': cerco log.do_* con errori"
+            find "$BUILD/tmp/work" -path '*/temp/log.do_*' -newermt '-6 hours' -print0 \
+              | xargs -0 -r grep -lE '^(ERROR|FATAL):|Error [0-9]+$|\*\*\* \[' \
+              | sort -u > /tmp/failed.txt
           fi
+
+          echo "===== log individuati ====="
+          cat /tmp/failed.txt
 
           while read -r f; do
             [ -f "$f" ] || continue
-            name=$(echo "$f" | sed 's|.*/tmp/work/||; s|/|_|g')
+            name=$(printf '%s' "$f" | sed 's|.*/tmp/work/||; s|/|_|g')
             cp "$f" "failure-logs/$name"
-            # copia anche lo script run.do_* corrispondente
             run="${f/log.do_/run.do_}"
             [ -f "$run" ] && cp "$run" "failure-logs/${name/log.do_/run.do_}"
-          done < /tmp/failed-logs.txt
+          done < /tmp/failed.txt
 
-          # scrub di sicurezza: lo step di pulizia non gira in caso di failure
-          grep -rlE "PRIVATE KEY|BEGIN .*KEY" failure-logs/ | xargs -r rm -f
+          grep -rlE "PRIVATE KEY|BEGIN .*KEY" failure-logs/ 2>/dev/null | xargs -r rm -f
 
-          echo "--- raccolti ---"
+          echo "===== raccolti ====="
           ls -la failure-logs/
-          echo "--- ultime 100 righe di ogni log ---"
-          for f in failure-logs/log.*; do
-            echo "===== $f ====="; tail -n 100 "$f"
+          for f in failure-logs/*log.do_*; do
+            [ -e "$f" ] || continue
+            echo "===== $f ====="
+            tail -n 120 "$f"
           done
+
+          exit 0
           
       - name: Clean Sensitive Files Before Archiving
         run: |
