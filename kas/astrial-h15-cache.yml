@@ -1,0 +1,12 @@
+header:
+  version: 11
+
+# Override SOLO per le build di sviluppo cachate (workflow dev-build.yml).
+# Sposta sstate-cache e downloads fuori da <build>/, sotto una radice cachabile
+# dalla GitHub Actions Cache. ${TOPDIR} = <workspace>/meta-hailo-soc/build, quindi
+# ${TOPDIR}/../../yocto-cache = <workspace>/yocto-cache, che combacia con
+# YOCTO_CACHE_ROOT nel workflow. NON incluso dallo schedulato né dal bump (no-cache).
+local_conf_header:
+  cache_config: |
+    SSTATE_DIR = "${TOPDIR}/../../yocto-cache/sstate-cache"
+    DL_DIR = "${TOPDIR}/../../yocto-cache/downloads"
