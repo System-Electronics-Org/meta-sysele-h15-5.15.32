@@ -618,27 +618,42 @@
 
     /*
      * CAN/mikroBUS bring-up (2026-07-20): settle pin set 31_16 (gpio1,
-     * SoC pins 16-31) on mode "gpio" via the shared mode register,
-     * without claiming any individual line. See &gpio1 below.
+     * SoC pins 16-31) on mode "gpio" via the shared mode register.
+     *
+     * IMPORTANT (found on hardware): on this driver, naming a pin in a
+     * function="gpio" group makes the gpio0/gpio1 controller itself
+     * gpio_request() that exact line at probe time (visible as
+     * "kernel ... [used]" in gpioinfo, and gpioset fails with -EINVAL:
+     * "pin already requested by <this same controller>"). It is
+     * effectively as sticky as gpio-hog, just via a different path.
+     *
+     * Fix: anchor on ONE throwaway pin per set (never used elsewhere).
+     * The other pins in the same set still settle on mode 2 because
+     * the mode register is shared set-wide -- confirmed via
+     * /sys/kernel/debug/pinctrl/7c291000.pinctrl/pins (all of 16-31
+     * read "current set mode: 2" even the ones with no "function name"
+     * tag) -- but only the named anchor pin itself gets claimed, so
+     * gpio18/19/24/25/31 stay genuinely "unused" and available for
+     * gpioset / a future spi-gpio node. See &gpio1 below.
      */
     pinctrl_gpio_validation_set5: gpio-validation-set5 {
         function = "gpio";
-        groups = "gpio18_grp", "gpio19_grp", "gpio24_grp",
-                  "gpio25_grp", "gpio31_grp";
+        groups = "gpio16_grp";
     };
 
     /*
-     * Same idea for pin set 15_8 (gpio0, SoC pins 8-15), freed by
+     * Same fix for pin set 15_8 (gpio0, SoC pins 8-15), freed by
      * dropping the USB overcurrent/vbus pinctrl claim on &cdns_usb3
-     * (pins 11/12). Anchored on 9/10/13, which carry no consumer today.
-     * NOTE: this also fixes the mode for pin 15 (today "mpp res out",
+     * (pins 11/12). Anchored on pin 8 (never used elsewhere) instead of
+     * naming 9/10/13 directly, for the same reason as set5 above.
+     * NOTE: this also settles the mode for pin 15 (today "mpp res out",
      * the PCIe reset) -- it becomes a plain GPIO for this boot, so PCIe
      * reset is inactive. Acceptable since PCIe isn't under test without
      * an M.2 module fitted.
      */
     pinctrl_gpio_validation_set4: gpio-validation-set4 {
         function = "gpio";
-        groups = "gpio9_grp", "gpio10_grp", "gpio13_grp";
+        groups = "gpio8_grp";
     };
 };
 
@@ -669,11 +684,13 @@
 
     /*
      * Deterministic mode-2 (gpio) selection for pin set 31_16 (SoC pins
-     * 16-31), freed by disabling &i2c_2 above. This requests the "gpio"
-     * function on the pin GROUPS via the controller's own pinctrl-0 --
-     * it settles the shared mode register WITHOUT claiming/hogging any
-     * individual line, so gpio18/19/24/25/31 stay "unused" in gpioinfo
-     * and remain available for gpioset / a future spi-gpio node.
+     * 16-31), freed by disabling &i2c_2 above. pinctrl_gpio_validation_set5
+     * (see &pinctrl) anchors on pin 16 only, on purpose -- naming 18/19/
+     * 24/25/31 directly here made THIS controller gpio_request() them at
+     * probe time (confirmed on hardware). With only pin 16 named, the
+     * rest of the set still lands on mode 2 (shared register) but stays
+     * genuinely "unused" in gpioinfo, available for gpioset today and a
+     * future spi-gpio node later:
      *   GPIO18 = CS_CAN     (J1-49)
      *   GPIO19 = spare      (J1-26, 40PH only)
      *   GPIO24 = SPI1_MOSI  (J1-44)
