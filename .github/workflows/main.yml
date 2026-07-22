@@ -119,10 +119,6 @@ jobs:
           export BB_ISOLATE_NETWORK=0
           export BB_NO_NETWORK=0
           
-          # --- tetto ai task concorrenti ---
-          export BB_NUMBER_THREADS=16
-          export PARALLEL_MAKE="-j 16"
-          
           # CI-specific build optimizations - reduce log verbosity
           export BITBAKE_UI_OPTS="-k"
           export BB_LOGCONFIG=""
