@@ -134,7 +134,7 @@ jobs:
           
           # Build using KAS with our Astrial H15 configuration
           set -e  # Exit on any error
-          if ! kas build astrial-h15-ci.yml; then
+          if ! kas build astrial-h15-ci.yml -- -k; then
             echo "ERROR: KAS build failed"
             exit 1
           fi
@@ -198,6 +198,33 @@ jobs:
               cp "$p" "failure-logs/$(printf '%s' "$p" | sed 's|.*/tmp/work/||; s|/|_|g')"
             done
 
+          exit 0
+          
+      - name: Retry Failed Packages Individually
+        if: failure()
+        run: |
+          set +e
+          cd meta-hailo-soc
+
+          # ricava le ricette fallite dal cooker log
+          COOKER=$(ls -t build/tmp/log/cooker/*/console-latest.log | head -1)
+          grep -oP '^ERROR: \K[a-z0-9.+-]+(?=-[0-9][^ ]* do_package:)' "$COOKER" \
+            | sort -u > /tmp/failed-recipes.txt
+
+          echo "===== ricette da riprovare ====="
+          cat /tmp/failed-recipes.txt
+
+          PASS=0; FAIL=0
+          while read -r r; do
+            echo "----- retry: $r -----"
+            if kas shell astrial-h15-ci.yml -c "bitbake -c package -f $r"; then
+              echo "RETRY OK: $r"; PASS=$((PASS+1))
+            else
+              echo "RETRY KO: $r"; FAIL=$((FAIL+1))
+            fi
+          done < /tmp/failed-recipes.txt
+
+          echo "===== esito: $PASS passate, $FAIL fallite ====="
           exit 0
           
       - name: Clean Sensitive Files Before Archiving
