@@ -1,0 +1,19 @@
+name: Astrial H15 Dev Build (cached)
+
+run-name: Astrial H15 Dev Build • ${{ github.ref_name }}
+
+# Build di sviluppo economica: usa la GitHub Actions Cache (sstate + downloads)
+# per ricompilare solo il delta (~90 min -> ~15-20 min). NON pubblica tag/release,
+# lascia solo gli artifact effimeri del run. Trigger manuale per controllo sui costi.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+    with:
+      publish: false
+      use_cache: true
+    secrets: inherit
