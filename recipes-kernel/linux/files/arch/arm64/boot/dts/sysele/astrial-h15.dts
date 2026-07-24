@@ -471,13 +471,7 @@
 };
 
 &i2c_2 {
-    /*
-     * DSI temporarily disabled (2026-07-20) to free the shared pin set
-     * (SoC pins 16-31) held by i2c2 for CAN/SPI-GPIO bring-up. See the
-     * pinctrl_gpio_validation_set5 state under &gpio1. Re-enable to
-     * restore the DSI touch panel path.
-     */
-    status = "disabled";
+    status = "ok";
     clock-frequency = <400000>;
     pinctrl-names = "default";
     pinctrl-0 = <&pinctrl_i2c2>;
@@ -520,16 +514,16 @@
 };
 
 &dpi0 {
-    status = "disabled";
+    status = "ok";
 };
 
 &dphy0 {
-    status = "disabled";
+    status = "ok";
 };
 
 
 &dsi0 {
-    status = "disabled";
+    status = "ok";
     ports {
         port@0 {
             reg = <0>;
@@ -615,31 +609,6 @@
         function = "gpio";
         groups = "gpio21_grp";
     };
-
-    /*
-     * CAN/mikroBUS bring-up (2026-07-20): settle pin set 31_16 (gpio1,
-     * SoC pins 16-31) on mode "gpio" via the shared mode register,
-     * without claiming any individual line. See &gpio1 below.
-     */
-    pinctrl_gpio_validation_set5: gpio-validation-set5 {
-        function = "gpio";
-        groups = "gpio18_grp", "gpio19_grp", "gpio24_grp",
-                  "gpio25_grp", "gpio31_grp";
-    };
-
-    /*
-     * Same idea for pin set 15_8 (gpio0, SoC pins 8-15), freed by
-     * dropping the USB overcurrent/vbus pinctrl claim on &cdns_usb3
-     * (pins 11/12). Anchored on 9/10/13, which carry no consumer today.
-     * NOTE: this also fixes the mode for pin 15 (today "mpp res out",
-     * the PCIe reset) -- it becomes a plain GPIO for this boot, so PCIe
-     * reset is inactive. Acceptable since PCIe isn't under test without
-     * an M.2 module fitted.
-     */
-    pinctrl_gpio_validation_set4: gpio-validation-set4 {
-        function = "gpio";
-        groups = "gpio9_grp", "gpio10_grp", "gpio13_grp";
-    };
 };
 
 #define GPIO_LINE_NAMES \
@@ -657,35 +626,12 @@
     gpio-ranges = <&pinctrl 0 0 16>;
 
     gpio-line-names = GPIO_LINE_NAMES;
-
-    pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_gpio_validation_set4>;
 };
 
 &gpio1 {
     gpio-ranges = <&pinctrl 0 16 16>;
 
     gpio-line-names = GPIO_LINE_NAMES;
-
-    /*
-     * Deterministic mode-2 (gpio) selection for pin set 31_16 (SoC pins
-     * 16-31), freed by disabling &i2c_2 above. This requests the "gpio"
-     * function on the pin GROUPS via the controller's own pinctrl-0 --
-     * it settles the shared mode register WITHOUT claiming/hogging any
-     * individual line, so gpio18/19/24/25/31 stay "unused" in gpioinfo
-     * and remain available for gpioset / a future spi-gpio node.
-     *   GPIO18 = CS_CAN     (J1-49)
-     *   GPIO19 = spare      (J1-26, 40PH only)
-     *   GPIO24 = SPI1_MOSI  (J1-44)
-     *   GPIO25 = SPI1_SCLK  (J1-38)
-     *   GPIO31 = spare      (J1-41, 40PH only)
-     * Added 2026-07-20 for CAN/spi-gpio bring-up; remove if DSI (&i2c_2)
-     * is restored. NOTE: once a spi-gpio node exists for SCK/MOSI/MISO/CS
-     * it will claim these lines itself -- validate with gpioset first,
-     * in a separate boot, before adding spi-gpio.
-     */
-    pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_gpio_validation_set5>;
 };
 
 &hailo_torrent_phy {
@@ -719,14 +665,9 @@
 };
 
 &cdns_usb3 {
-    /*
-     * USB overcurrent/VBUS GPIO pinctrl temporarily dropped (2026-07-20)
-     * to free SoC pins 11/12 (same pin set as pin 15, PCIe reset) for
-     * CAN/SPI-GPIO bring-up. hailo,force-drive-vbus on &hailo_usb3 is
-     * untouched -- that is an internal controller flag, not a pin claim.
-     * USB1 is not testable via the carrier's data routing anyway.
-     */
     dr_mode = "host";
     phys = <&torrent_phy_usb3>;
     phy-names = "cdns3,usb3-phy";
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_usb_overcurrent_n_in>, <&pinctrl_usb_drive_vbus_out>;
 };
