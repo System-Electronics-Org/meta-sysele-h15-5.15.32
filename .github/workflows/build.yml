@@ -24,8 +24,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-large-runner
-    permissions:
-      contents: write
+    # I permessi NON si dichiarano qui: un reusable non può chiedere più di quanto
+    # il chiamante gli concede (altrimenti "Invalid workflow file"). Li decide chi
+    # chiama: main=write (release), dev-build/bump=read. Vedi `permissions:` nei chiamanti.
     env:
       # Radice della cache Yocto, fuori da meta-hailo-soc/build (che NON si cacha).
       # Deve combaciare con ${TOPDIR}/../../yocto-cache usato in kas/astrial-h15-cache.yml.
