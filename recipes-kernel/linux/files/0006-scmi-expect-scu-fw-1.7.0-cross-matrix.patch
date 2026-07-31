@@ -1,0 +1,64 @@
+From: System Electronics <riccardo.fiocchi00@gmail.com>
+Subject: [PATCH] scmi: expect SCU-FW 1.7.0 (SCMI 0.47.2) for the cross-matrix test
+
+DIAGNOSTIC ONLY - do not merge into a release branch.
+
+Builds a kernel that accepts the 1.7.0 SCU firmware, so the 1.12 kernel and
+device tree can be run against the older firmware. The DSI display resets the
+board on 1.12 and works on 1.7.0 with the same kernel-side code (the DSI path is
+byte-identical between the two), so the firmware is the last untested variable.
+Pairing a 1.12 kernel with the 1.7.0 firmware is what tells the two apart.
+
+Three separate checks compare the kernel against the firmware, and all three
+resolve to SCU_FW_SCMI_VERSION, so one value change covers them:
+
+  drivers/firmware/arm_scmi/driver.c:1882            panic() on macro vs impl_ver
+  drivers/firmware/arm_scmi/driver.c:1890            panic() on DT fw-ver vs impl_ver
+  drivers/firmware/arm_scmi/scmi_hailo_protocol.c    -EINVAL, kills the Hailo protocol
+
+The second one reads the device tree property, which is itself written as
+fw-ver = <SCU_FW_SCMI_VERSION> in hailo1x-base.dtsi.
+
+Both copies of the header have to change. They are two real files, not a symlink:
+include/ feeds the C compiler and scripts/dtc/include-prefixes/ feeds the device
+tree compiler. Patching only one makes the DTB and the compiled-in macro disagree,
+which trips the DT check and panics - the exact failure this patch exists to avoid.
+
+0.47.2 -> (0 << 24) | (47 << 16) | 2 = 0x002F0002
+0.50.1 -> (0 << 24) | (50 << 16) | 1 = 0x00320001
+
+Revert before releasing anything.
+
+---
+ include/dt-bindings/soc/hailo15_scu_fw_version.h              | 4 ++--
+ scripts/dtc/include-prefixes/dt-bindings/soc/hailo15_scu_fw_version.h | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/include/dt-bindings/soc/hailo15_scu_fw_version.h b/include/dt-bindings/soc/hailo15_scu_fw_version.h
+--- a/include/dt-bindings/soc/hailo15_scu_fw_version.h
++++ b/include/dt-bindings/soc/hailo15_scu_fw_version.h
+@@ -7,8 +7,8 @@
+ #define HAILO15_SCU_FW_VERSION_H
+
+ #define SCU_FW_MAJOR 0
+-#define SCU_FW_MINOR 50
+-#define SCU_FW_REVISION 1
++#define SCU_FW_MINOR 47
++#define SCU_FW_REVISION 2
+ #define SCU_FW_SCMI_VERSION (((SCU_FW_MAJOR) << 24) | ((SCU_FW_MINOR) << 16) | (SCU_FW_REVISION))
+
+ #endif /* HAILO15_SCU_FW_VERSION_H */
+diff --git a/scripts/dtc/include-prefixes/dt-bindings/soc/hailo15_scu_fw_version.h b/scripts/dtc/include-prefixes/dt-bindings/soc/hailo15_scu_fw_version.h
+--- a/scripts/dtc/include-prefixes/dt-bindings/soc/hailo15_scu_fw_version.h
++++ b/scripts/dtc/include-prefixes/dt-bindings/soc/hailo15_scu_fw_version.h
+@@ -7,8 +7,8 @@
+ #define HAILO15_SCU_FW_VERSION_H
+
+ #define SCU_FW_MAJOR 0
+-#define SCU_FW_MINOR 50
+-#define SCU_FW_REVISION 1
++#define SCU_FW_MINOR 47
++#define SCU_FW_REVISION 2
+ #define SCU_FW_SCMI_VERSION (((SCU_FW_MAJOR) << 24) | ((SCU_FW_MINOR) << 16) | (SCU_FW_REVISION))
+
+ #endif /* HAILO15_SCU_FW_VERSION_H */

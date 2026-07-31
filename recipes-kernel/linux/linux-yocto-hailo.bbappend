@@ -34,3 +34,10 @@ SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch \
 # WM8960 codec support for the Astrial H15 custom carrier.
 SRC_URI:append = " file://0005-wm8960-auto-sysclk.patch \
     file://wm8960.cfg"
+
+# DSI cross-matrix test - DIAGNOSTIC, NOT FOR RELEASE.
+# Makes this kernel accept SCU-FW 1.7.0 (SCMI 0.47.2) instead of 1.12.0 (0.50.1),
+# so a 1.12 kernel can be run against the older firmware. Without it the board
+# panics with "Version mismatch!" before reaching userspace.
+# Revert together with the firmware once the test has answered.
+SRC_URI:append = " file://0006-scmi-expect-scu-fw-1.7.0-cross-matrix.patch"
