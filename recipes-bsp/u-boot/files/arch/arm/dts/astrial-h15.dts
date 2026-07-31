@@ -10,15 +10,51 @@
 //#include "hailo15_ddr_MT53E512M32D1-046_regconfig_2GB.dtsi"
 //#include "hailo15_ddr_MT53E2G32D4DE-046_regconfig_8GB.dtsi"
 /*
- * Legacy Astrial releases used the same ca_odtb_pu DDR profile
- * selected by the Hailo15 SBC.
- * Hailo15 SBC 1.12 now uses this updated 4GB LPDDR4 profile.
- * DDR stability must still be validated on Astrial H15 hardware.
+ * DDR profile for the DRAM actually fitted on Astrial H15:
+ *   Micron MT53E1G32D2FW-046 IT:B  ->  LPDDR4X, 4 GB, x32, 4266 Mbps, die rev B
+ *
+ * The 1.12 port aligned this to the Hailo15 SBC and landed on the ...regconfig_4GB_LP4
+ * profile, i.e. plain LPDDR4. That is the wrong memory type: MT53E is LPDDR4X, which
+ * uses VDDQ 0.6 V instead of 1.1 V and therefore needs different ODT, drive-strength
+ * and VREF mode-register settings. Selecting LP4 on an LP4X part leaves the interface
+ * marginal - it survives light CPU traffic but degrades under sustained concurrent DMA.
+ *
+ * TESTED 2026-07-28 - LP4X DOES NOT WORK, DO NOT RETRY:
+ *   ...regconfig_4GB_LP4X  ->  "Boot failed with status: 0x07", SCU falls back to a clock
+ *   where the console runs at 57600 instead of 115200. The board does not reach U-Boot.
+ * The DRAM die is LPDDR4X-capable, but VDDQ is a SOM design choice and this board is wired
+ * for LPDDR4 (1.1 V). The _LP4 profile below is therefore the correct memory type.
+ *
+ * Still unexplained vs the working legacy config: it used ...regconfig_ca_odtb_pu_4GB, i.e.
+ * CA-bus ODT termination enabled (pull-up). That entry no longer exists in the 1.12 profile
+ * table; the only ca_odtb variant left is ..._ca_odtb_pd_4GB_LP4 (pull-DOWN). Untested.
  */
 #include "hailo1x_ddr_MT53E1G32D2FW-046-B_regconfig_4GB_LP4.dtsi"
 
 &hailo_boot_info {
     shutdown-gpio-pin = <20>;
+
+    /*
+     * DSI debug (run B1) - DIAGNOSTICA, NON per la produzione.
+     *
+     * watchdog-timeout: timeout del watchdog SCU in secondi, 1-20 (0 = disabilitato).
+     *   Documentato in OS User Guide 1.12 §3.4 e confermato: la stringa e' presente
+     *   nel binario SCU-FW, insieme a product-id / assembled_dram_pn / ecc.
+     *   A 20 s la finestra di osservazione dopo il modeset diventa comoda invece che
+     *   acrobatica (oggi va da 30 ms a ~2,7 s), e l'AP watchdog resta attivo a 10 s:
+     *   se il reset arriva a ~10 s e' l'AP bloccato, se a ~20 s e' l'SCU.
+     *
+     * enable-bus-timeout-recovery: attiva il Timeout Monitor del NoC. Il firmware
+     *   monitora 104 nodi, fra cui csi_tx0_main / csi_tx0_I_main, che sono la porta
+     *   master del nostro DPI (dpi0 sta sul power domain e sui clock CSI_TX0).
+     *   Se il DMA di scanout stalla, l'SCU lo dice per nome:
+     *     [TOM] timeout monitor on %s bus interrupt handled - bus unstuck
+     *   Trasforma il reset silenzioso in un evento loggato e attribuito.
+     *
+     * Rimuovere entrambe prima di rilasciare.
+     */
+    watchdog-timeout = <20>;
+    enable-bus-timeout-recovery;
 };
 
 &sdio0 {
