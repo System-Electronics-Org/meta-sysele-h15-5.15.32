@@ -55,6 +55,36 @@
      */
     watchdog-timeout = <20>;
     enable-bus-timeout-recovery;
+
+    /*
+     * Disattiva il riordino delle transazioni del controller DDR Cadence/Denali.
+     *
+     * Suggerita da Hailo (Klaus Koschinsky, 2026-08-24) come possibile causa del
+     * reset che il DSI provoca su 1.12 e non su 1.7.0. Il DPI e' un master
+     * isocrono: legge il framebuffer al ritmo imposto dal timing video e non puo'
+     * aspettare. E' l'unico master di quel tipo che accendiamo, ed e' il traffico
+     * che una politica di riordino puo' maltrattare - il che spiega perche' il
+     * guasto compaia solo al modeset e mai durante il resto del boot.
+     *
+     * Riscontro indipendente: la stringa "out_of_order_en" esiste nella tabella
+     * delle proprieta' del binario SCU-FW 1.12.0 ma NON in quella del 1.7.0. Il
+     * riordino e' quindi una funzione introdotta con il 1.12, e la versione che
+     * non resetta e' proprio quella in cui non esiste. Poiche' la proprieta' non
+     * era presente in nessuno dei due device tree, finora valeva il default
+     * interno del firmware.
+     *
+     * Il nodo ddr_config arriva da hailo15_ddr_configuration.dtsi nei sorgenti
+     * U-Boot; qui lo si estende per override, senza patchare quell'albero.
+     *
+     * Verificare sulla board dopo il flash - il nome del nodo ha il suffisso @0:
+     *   fdt addr $fdtcontroladdr && fdt print /hailo_boot_info@0/ddr_config
+     *
+     * Se il test conferma, valutare il costo in banda: disattivare il riordino
+     * riduce l'efficienza di accesso ai bank.
+     */
+    ddr_config {
+        out_of_order_en = <0>;
+    };
 };
 
 &sdio0 {
