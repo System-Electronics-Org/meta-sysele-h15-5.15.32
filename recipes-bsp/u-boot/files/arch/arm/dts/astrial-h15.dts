@@ -26,6 +26,16 @@
 
 &hailo_boot_info {
     shutdown-gpio-pin = <20>;
+
+    /*
+     * Deliberate product choice, not a debug leftover.
+     * Enables the SCU bus timeout monitor recovery. The TOM node table covers
+     * csi_tx0_main and csi_tx0_I_main, the DPI master port.
+     *
+     * Measured: during the DSI investigation the TOM never reported anything,
+     * across dozens of resets. Its presence does not guarantee a diagnosis.
+     */
+    enable-bus-timeout-recovery;
 };
 
 &sdio0 {
