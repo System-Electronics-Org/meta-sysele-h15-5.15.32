@@ -599,6 +599,14 @@
 
 &hailo_usb3 {
     status = "okay";
+
+    /*
+     * The Cadence hardware state machine does not raise VBUS on this carrier.
+     * Force DRIVE_VBUS high through the SFR override when the xHCI host starts.
+     * Requires 0003-cdns3-hailo-force-drive-vbus.patch; without it this
+     * property is ignored without any message.
+     */
+    hailo,force-drive-vbus;
 };
 
 &cdns_usb3 {
