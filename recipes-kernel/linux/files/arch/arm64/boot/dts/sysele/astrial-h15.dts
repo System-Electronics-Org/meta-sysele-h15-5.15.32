@@ -29,7 +29,7 @@
             sensor_out_csi2rx1: endpoint {
                 data-lanes = <1 2 3 4>;
                 remote-endpoint = <&csi2rx1_in_sensor>;
-		        link-frequencies = /bits/ 64 <891000000 1440000000 1782000000>;
+                link-frequencies = /bits/ 64 <891000000 1440000000 1782000000>;
             };
         };
     };
@@ -84,11 +84,11 @@
         reg = <0x18>;
         ai3x-source-clk = "bclk";
         ai3x-micbias-vg = <2>;
-		/* Regulators */
-		AVDD-supply = <&regulator_3p3v>;
-		IOVDD-supply = <&regulator_1p8v>;
-		DRVDD-supply = <&regulator_3p3v>;
-		DVDD-supply = <&regulator_1p8v>;
+        /* Regulators */
+        AVDD-supply = <&regulator_3p3v>;
+        IOVDD-supply = <&regulator_1p8v>;
+        DRVDD-supply = <&regulator_3p3v>;
+        DVDD-supply = <&regulator_1p8v>;
     };
 };
 
@@ -295,13 +295,13 @@
     broken-cd;
     sdhci-caps= <0 0x01000000>; // Force VOLT33 capability
     phy-config {
-		card-is-emmc = <0x0>;
-		cmd-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
-        	dat-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
-        	rst-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
-        	clk-pad-values = <0x1 0x3 0x0 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
-        	sdclkdl-cnfg = <0x0 0x32>; //extdly_en, cckdl_dc
-        	drive-strength = <0xC 0xC>; //pad_sp, pad_sn
+        card-is-emmc = <0x0>;
+        cmd-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
+        dat-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
+        rst-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
+        clk-pad-values = <0x1 0x3 0x0 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
+        sdclkdl-cnfg = <0x0 0x32>; //extdly_en, cckdl_dc
+        drive-strength = <0xC 0xC>; //pad_sp, pad_sn
     };
 };
 
@@ -487,20 +487,20 @@
         interrupts = <5 IRQ_TYPE_EDGE_RISING>;
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_gpio21>;
-	};	
-	
+    };
+
     lcd@45 {
         status = "ok";
         compatible = "raspberrypi,7inch-touchscreen-panel";
         reg = <0x45>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_pwm1>;        	
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_pwm1>;
         port {
             panel_in: endpoint {
                 remote-endpoint = <&dsi0_out>;
             };
         };
-    };	
+    };
 };
 
 &dpi0 {
@@ -535,7 +535,7 @@
                "eth_rgmii_txd_3";
         drive-strength = <2>;
     };
-    
+
     pinctrl_pwm1: pwm1 {
         function = "pwm1";
         groups = "pwm1_grp";
