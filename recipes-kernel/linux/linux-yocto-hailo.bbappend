@@ -38,3 +38,7 @@ SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch"
 # patch without the property is inert, the property without the patch is
 # silently ignored.
 SRC_URI:append = " file://0003-cdns3-hailo-force-drive-vbus.patch"
+
+# WM8960 audio codec on the Astrial H15 carrier.
+SRC_URI:append = " file://0005-wm8960-auto-sysclk.patch \
+    file://wm8960.cfg"
