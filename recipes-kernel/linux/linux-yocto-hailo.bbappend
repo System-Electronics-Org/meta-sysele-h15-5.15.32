@@ -29,3 +29,6 @@ do_configure:prepend() {
         echo "sysele already in DTS Makefile, skipping"
     fi
 }
+
+# Raspberry Pi 7" touchscreen panel support.
+SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch"
