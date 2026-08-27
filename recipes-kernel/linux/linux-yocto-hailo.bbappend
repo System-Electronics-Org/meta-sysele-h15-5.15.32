@@ -7,10 +7,6 @@ SRC_URI += " \
     file://arch/arm64/boot/dts/sysele/astrial-h15.dts \
     file://arch/arm64/boot/dts/sysele/Makefile \
 "
-# TODO: Port this customization to the Hailo 1.12 kernel if still required.
-# The original target file drivers/pinctrl/hailo/pinctrl-hailo15-cpld.c
-# is no longer available in the same form.
-
 do_configure:prepend() {
     # Create vendor directory
     install -d ${S}/arch/arm64/boot/dts/sysele
@@ -29,3 +25,19 @@ do_configure:prepend() {
         echo "sysele already in DTS Makefile, skipping"
     fi
 }
+
+# Raspberry Pi 7" touchscreen panel support.
+SRC_URI:append = " file://0001-rpi-touchscreen-retry-reg-id-read.patch"
+
+# USB3: allow the board device tree to force DRIVE_VBUS high.
+# Inseparable from the hailo,force-drive-vbus property in the Linux DTS: the
+# patch without the property is inert, the property without the patch is
+# silently ignored.
+SRC_URI:append = " file://0003-cdns3-hailo-force-drive-vbus.patch"
+
+# WM8960 audio codec on the Astrial H15 carrier.
+SRC_URI:append = " file://0005-wm8960-auto-sysclk.patch \
+    file://wm8960.cfg"
+
+# i2c-gpio, needed only by the bitbanged audio bus. Goes away with it.
+SRC_URI:append = " file://i2c-gpio.cfg"

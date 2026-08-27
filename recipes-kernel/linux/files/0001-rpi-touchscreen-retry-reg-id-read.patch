@@ -1,0 +1,57 @@
+From: System Electronics
+Date: Mon, 6 Jul 2026 16:45:00 +0200
+Subject: [PATCH] drm/panel: rpi-touchscreen: retry initial Atmel ID read
+
+Retry the initial Atmel REG_ID read to tolerate transient I2C errors
+during early boot on Astrial H15.
+
+---
+--- a/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c	2026-07-06 16:51:38.407716212 +0200
++++ b/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c	2026-07-06 16:51:38.407716212 +0200
+@@ -370,6 +370,7 @@
+ 	struct device_node *endpoint, *dsi_host_node;
+ 	struct mipi_dsi_host *host;
+ 	int ver;
++	int i;
+ 	struct mipi_dsi_device_info info = {
+ 		.type = RPI_DSI_DRIVER_NAME,
+ 		.channel = 0,
+@@ -384,12 +385,36 @@
+ 
+ 	ts->i2c = i2c;
+ 
+-	ver = rpi_touchscreen_i2c_read(ts, REG_ID);
++	/*
++	 * The Raspberry Pi 7" panel controller can NACK or lose arbitration
++	 * during early boot on this platform. Do not turn a transient I2C
++	 * failure into a permanent -ENODEV immediately: retry the initial
++	 * REG_ID read while the panel/controller settles.
++	 */
++	for (i = 0; i < 20; i++) {
++		ver = rpi_touchscreen_i2c_read(ts, REG_ID);
++		if (ver >= 0)
++			break;
++
++		dev_warn(dev,
++			 "Atmel I2C read attempt %d/20 failed: %d\n",
++			 i + 1, ver);
++
++		if (i < 19)
++			usleep_range(20000, 25000);
++	}
++
+ 	if (ver < 0) {
+-		dev_err(dev, "Atmel I2C read failed: %d\n", ver);
++		dev_err(dev, "Atmel I2C read failed after 20 attempts: %d\n",
++			ver);
+ 		return -ENODEV;
+ 	}
+ 
++	if (i)
++		dev_info(dev,
++			 "Atmel I2C read succeeded after %d attempts: 0x%02x\n",
++			 i + 1, ver);
++
+ 	switch (ver) {
+ 	case 0xde: /* ver 1 */
+ 	case 0xc3: /* ver 2 */

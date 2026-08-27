@@ -1,0 +1,9 @@
+#!/bin/sh
+# Print the build banner on demand, same content shown at login.
+
+if [ ! -r /opt/sysele/build-info ]; then
+    echo "sysele-info: /opt/sysele/build-info is missing" >&2
+    exit 1
+fi
+
+cat /opt/sysele/build-info

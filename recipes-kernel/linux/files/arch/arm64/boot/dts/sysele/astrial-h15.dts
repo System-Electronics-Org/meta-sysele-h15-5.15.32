@@ -29,7 +29,7 @@
             sensor_out_csi2rx1: endpoint {
                 data-lanes = <1 2 3 4>;
                 remote-endpoint = <&csi2rx1_in_sensor>;
-		        link-frequencies = /bits/ 64 <891000000 1440000000 1782000000>;
+                link-frequencies = /bits/ 64 <891000000 1440000000 1782000000>;
             };
         };
     };
@@ -78,16 +78,17 @@
     };
 
     codec_tlv320aic3104: tlv320aic3104@18 {
+        status = "disabled"; /* Not fitted on the custom Astrial carrier */
         #sound-dai-cells = <0>;
         compatible = "ti,tlv320aic3104";
         reg = <0x18>;
         ai3x-source-clk = "bclk";
         ai3x-micbias-vg = <2>;
-		/* Regulators */
-		AVDD-supply = <&regulator_3p3v>;
-		IOVDD-supply = <&regulator_1p8v>;
-		DRVDD-supply = <&regulator_3p3v>;
-		DVDD-supply = <&regulator_1p8v>;
+        /* Regulators */
+        AVDD-supply = <&regulator_3p3v>;
+        IOVDD-supply = <&regulator_1p8v>;
+        DRVDD-supply = <&regulator_3p3v>;
+        DVDD-supply = <&regulator_1p8v>;
     };
 };
 
@@ -294,13 +295,13 @@
     broken-cd;
     sdhci-caps= <0 0x01000000>; // Force VOLT33 capability
     phy-config {
-		card-is-emmc = <0x0>;
-		cmd-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
-        	dat-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
-        	rst-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
-        	clk-pad-values = <0x1 0x3 0x0 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
-        	sdclkdl-cnfg = <0x0 0x32>; //extdly_en, cckdl_dc
-        	drive-strength = <0xC 0xC>; //pad_sp, pad_sn
+        card-is-emmc = <0x0>;
+        cmd-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
+        dat-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
+        rst-pad-values = <0x1 0x3 0x1 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
+        clk-pad-values = <0x1 0x3 0x0 0x1>; // txslew_ctrl_n, txslew_ctrl_p, weakpull_enable, rxsel
+        sdclkdl-cnfg = <0x0 0x32>; //extdly_en, cckdl_dc
+        drive-strength = <0xC 0xC>; //pad_sp, pad_sn
     };
 };
 
@@ -335,8 +336,20 @@
 
 &audio_card_master {
     status = "ok";
+    simple-audio-card,name = "Astrial-WM8960";
     simple-audio-card,bitclock-master = <&cpu_dai_master>;
     simple-audio-card,frame-master = <&cpu_dai_master>;
+
+    simple-audio-card,widgets =
+        "Speaker", "Speaker",
+        "Microphone", "Onboard Microphone";
+
+    simple-audio-card,routing =
+        "Speaker", "SPK_LP",
+        "Speaker", "SPK_LN",
+        "Speaker", "SPK_RP",
+        "Speaker", "SPK_RN",
+        "LINPUT1", "Onboard Microphone";
 
     cpu_dai_master: simple-audio-card,cpu {
         sound-dai = <&i2s_cpu_master>;
@@ -344,8 +357,8 @@
         system-clock-direction-out;
     };
     codec_dai_master: simple-audio-card,codec {
-        sound-dai = <&codec_tlv320aic3104>;
-        system-clock-frequency = <1562500>;
+        sound-dai = <&codec_wm8960>;
+        system-clock-frequency = <24000000>;
     };
 };
 
@@ -383,6 +396,55 @@
         #clock-cells = <0>;
         clock-frequency = <24000000>;
     };
+
+    /* External audio oscillator on the System carrier. */
+    /* TODO: check if this duplicates the 24 MHz fixed-clock above. */
+    audio_mclk: audio-mclk {
+        compatible = "fixed-clock";
+        #clock-cells = <0>;
+        clock-frequency = <24000000>;
+        clock-output-names = "wm8960-mclk";
+    };
+
+    /*
+     * Carrier workaround, temporary.
+     *
+     * The current EVB System carrier swaps the two I2C3 pins: GPIO6 is on the
+     * physical SCL net and GPIO7 on SDA, the opposite of what the controller
+     * drives. So the bus is bitbanged here and &i2c_3 is disabled.
+     *
+     * Exit: revert this commit when the carrier routes GPIO6 to SDA and GPIO7
+     * to SCL, which restores the codec on the hardware controller.
+     */
+    i2c_audio: i2c-audio {
+        compatible = "i2c-gpio";
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        scl-gpios = <&gpio0 6
+            (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+        sda-gpios = <&gpio0 7
+            (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+
+        /*
+         * A 5 us delay gives a nominal bus rate around 100 kHz, enough for
+         * codec configuration and conservative for a first board bring-up.
+         */
+        i2c-gpio,delay-us = <5>;
+        i2c-gpio,timeout-ms = <100>;
+
+        codec_wm8960: codec@1a {
+            compatible = "wlf,wm8960";
+            reg = <0x1a>;
+            #sound-dai-cells = <0>;
+
+            clocks = <&audio_mclk>;
+            clock-names = "mclk";
+
+            wlf,shared-lrclk;
+            wlf,sysclk-auto;
+        };
+    };
 };
 
 &sdio0_reserved {
@@ -391,6 +453,11 @@
 
 &serial0 {
  status = "ok";
+};
+
+&i2c_3 {
+    /* Disabled by the carrier pin swap: see the i2c_audio node. */
+    status = "disabled";
 };
 
 &i2c_2 {
@@ -420,20 +487,20 @@
         interrupts = <5 IRQ_TYPE_EDGE_RISING>;
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_gpio21>;
-	};	
-	
+    };
+
     lcd@45 {
         status = "ok";
         compatible = "raspberrypi,7inch-touchscreen-panel";
         reg = <0x45>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_pwm1>;        	
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_pwm1>;
         port {
             panel_in: endpoint {
                 remote-endpoint = <&dsi0_out>;
             };
         };
-    };	
+    };
 };
 
 &dpi0 {
@@ -468,7 +535,7 @@
                "eth_rgmii_txd_3";
         drive-strength = <2>;
     };
-    
+
     pinctrl_pwm1: pwm1 {
         function = "pwm1";
         groups = "pwm1_grp";
@@ -477,6 +544,12 @@
     pinctrl_i2c2: i2c2 {
         function = "i2c2";
         groups = "i2c2_1_grp";
+    };
+
+    /* i2c3_0_grp is pins 6 and 7: pin 6 SDA, pin 7 SCL. */
+    pinctrl_i2c3: i2c3 {
+        function = "i2c3";
+        groups = "i2c3_0_grp";
     };
 
     pinctrl_i2c0_current_src_en_out: i2c0_current_src_en_out {
@@ -537,7 +610,7 @@
 
 #define GPIO_LINE_NAMES \
     "SPI_CS2",                  "SPI_CS3",                  "DSI_RST",                  "CAM_TRIG", \
-    "cam0_reset_n",             "cam1_reset_n",             "gpio_in_out_6",            "gpio_in_out_7", \
+    "cam0_reset_n",             "cam1_reset_n",             "audio_i2c_scl",            "audio_i2c_sda", \
     "gpio_in_out_8",            "sdio0_gp_in",              "sdio0_cd_in",              "usb_overcurrent_n_in", \
     "usb_drive_vbus_out",       "sdio1_gp_in",              "sdio1_cd_in_n",            "RVSD", \
     \
@@ -599,6 +672,14 @@
 
 &hailo_usb3 {
     status = "okay";
+
+    /*
+     * The Cadence hardware state machine does not raise VBUS on this carrier.
+     * Force DRIVE_VBUS high through the SFR override when the xHCI host starts.
+     * Requires 0003-cdns3-hailo-force-drive-vbus.patch; without it this
+     * property is ignored without any message.
+     */
+    hailo,force-drive-vbus;
 };
 
 &cdns_usb3 {

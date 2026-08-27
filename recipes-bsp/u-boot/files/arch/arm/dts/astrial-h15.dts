@@ -10,15 +10,49 @@
 //#include "hailo15_ddr_MT53E512M32D1-046_regconfig_2GB.dtsi"
 //#include "hailo15_ddr_MT53E2G32D4DE-046_regconfig_8GB.dtsi"
 /*
- * Legacy Astrial releases used the same ca_odtb_pu DDR profile
- * selected by the Hailo15 SBC.
- * Hailo15 SBC 1.12 now uses this updated 4GB LPDDR4 profile.
- * DDR stability must still be validated on Astrial H15 hardware.
+ * DDR profile for the DRAM fitted on Astrial H15:
+ *   Micron MT53E1G32D2FW-046 IT:B, 4 GB, x32, 4266 Mbps, die rev B
+ *
+ * The LP4X profile was tried once (2026-07-28): INCONCLUSIVE, not negative.
+ * The image was rejected by the ROM ("Boot failed with status: 0x07") before
+ * the profile was applied. Whether this board is wired LPDDR4 or LPDDR4X is
+ * still unknown.
+ *
+ * The legacy config used ..._ca_odtb_pu_4GB (CA ODT pull-up), which no longer
+ * exists in 1.12. The only ca_odtb variant left is ..._ca_odtb_pd_4GB_LP4
+ * (pull-down), never tried.
  */
 #include "hailo1x_ddr_MT53E1G32D2FW-046-B_regconfig_4GB_LP4.dtsi"
 
 &hailo_boot_info {
     shutdown-gpio-pin = <20>;
+
+    /*
+     * Deliberate product choice, not a debug leftover.
+     * Enables the SCU bus timeout monitor recovery. The TOM node table covers
+     * csi_tx0_main and csi_tx0_I_main, the DPI master port.
+     *
+     * Measured: during the DSI investigation the TOM never reported anything,
+     * across dozens of resets. Its presence does not guarantee a diagnosis.
+     */
+    enable-bus-timeout-recovery;
+
+    /*
+     * Disable DDR controller transaction reordering. Suggested by Hailo
+     * (K. Koschinsky, 2026-08-24): without it, enabling the display resets the
+     * SoC 12 times out of 12; with it, 6 clean boots out of 6.
+     *
+     * The DPI is the only isochronous master we enable and cannot absorb the
+     * tail latency reordering introduces. The property exists in the SCU-FW
+     * 1.12.0 DT property table and not in 1.7.0.
+     *
+     * Mitigation, not a root cause. Open with Hailo: why it escalates to a full
+     * reset, why no SCU diagnostic fires, and whether per-port QoS exists.
+     * Measured cost: none detectable.
+     */
+    ddr_config {
+        out_of_order_en = <0>;
+    };
 };
 
 &sdio0 {
