@@ -405,6 +405,46 @@
         clock-frequency = <24000000>;
         clock-output-names = "wm8960-mclk";
     };
+
+    /*
+     * Carrier workaround, temporary.
+     *
+     * The current EVB System carrier swaps the two I2C3 pins: GPIO6 is on the
+     * physical SCL net and GPIO7 on SDA, the opposite of what the controller
+     * drives. So the bus is bitbanged here and &i2c_3 is disabled.
+     *
+     * Exit: revert this commit when the carrier routes GPIO6 to SDA and GPIO7
+     * to SCL, which restores the codec on the hardware controller.
+     */
+    i2c_audio: i2c-audio {
+        compatible = "i2c-gpio";
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        scl-gpios = <&gpio0 6
+            (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+        sda-gpios = <&gpio0 7
+            (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+
+        /*
+         * A 5 us delay gives a nominal bus rate around 100 kHz, enough for
+         * codec configuration and conservative for a first board bring-up.
+         */
+        i2c-gpio,delay-us = <5>;
+        i2c-gpio,timeout-ms = <100>;
+
+        codec_wm8960: codec@1a {
+            compatible = "wlf,wm8960";
+            reg = <0x1a>;
+            #sound-dai-cells = <0>;
+
+            clocks = <&audio_mclk>;
+            clock-names = "mclk";
+
+            wlf,shared-lrclk;
+            wlf,sysclk-auto;
+        };
+    };
 };
 
 &sdio0_reserved {
@@ -416,23 +456,8 @@
 };
 
 &i2c_3 {
-    /* Target form: the codec on the hardware I2C3 controller. */
-    status = "ok";
-    clock-frequency = <400000>;
-    pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_i2c3>;
-
-    codec_wm8960: codec@1a {
-        compatible = "wlf,wm8960";
-        reg = <0x1a>;
-        #sound-dai-cells = <0>;
-
-        clocks = <&audio_mclk>;
-        clock-names = "mclk";
-
-        wlf,shared-lrclk;
-        wlf,sysclk-auto;
-    };
+    /* Disabled by the carrier pin swap: see the i2c_audio node. */
+    status = "disabled";
 };
 
 &i2c_2 {
@@ -585,7 +610,7 @@
 
 #define GPIO_LINE_NAMES \
     "SPI_CS2",                  "SPI_CS3",                  "DSI_RST",                  "CAM_TRIG", \
-    "cam0_reset_n",             "cam1_reset_n",             "gpio_in_out_6",            "gpio_in_out_7", \
+    "cam0_reset_n",             "cam1_reset_n",             "audio_i2c_scl",            "audio_i2c_sda", \
     "gpio_in_out_8",            "sdio0_gp_in",              "sdio0_cd_in",              "usb_overcurrent_n_in", \
     "usb_drive_vbus_out",       "sdio1_gp_in",              "sdio1_cd_in_n",            "RVSD", \
     \

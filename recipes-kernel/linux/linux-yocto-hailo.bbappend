@@ -42,3 +42,6 @@ SRC_URI:append = " file://0003-cdns3-hailo-force-drive-vbus.patch"
 # WM8960 audio codec on the Astrial H15 carrier.
 SRC_URI:append = " file://0005-wm8960-auto-sysclk.patch \
     file://wm8960.cfg"
+
+# i2c-gpio, needed only by the bitbanged audio bus. Goes away with it.
+SRC_URI:append = " file://i2c-gpio.cfg"
