@@ -1,0 +1,73 @@
+From: System Electronics
+Date: Sun, 7 Sep 2026 18:00:00 +0200
+Subject: [PATCH] media: hailo15-isp: allow a non-zero vdid when the FE is off
+
+Astrial H15 routes its only camera connector to CSI-RX1, because CSI-RX0
+shares its connector with the DSI TX lanes and those are needed by the
+display. HAILO15_VID_GRP_TO_VDID() maps every CSI1 ISP group to vdid 1,
+so a single-sensor setup on this board always presents vdid 1.
+
+hailo15_isp_read_vdid_reg() and hailo15_isp_write_vdid_reg() refuse any
+vdid other than 0 while the front-end is disabled, which is always the
+case with one sensor: fe_enable is set only by the MCM (multi-camera)
+path. The result is a WARN per frame, -EINVAL out of
+hailo15_isp_is_path_enabled(), and no stream.
+
+In that same branch the vdid is not used for anything: the access is a
+raw read/write of the single register context. Kernel 1.7.0 had no vdid
+mechanism at all and drove this exact wiring correctly. The check is an
+assumption that a single sensor always sits on CSI-RX0, which holds on
+Hailo boards and not on ours.
+
+Keep the front-end path untouched and, without a front-end, ignore the
+vdid instead of failing. Log it once so the situation stays visible.
+
+Upstream-Status: Inappropriate [Astrial H15 board-specific camera topology]
+
+---
+--- a/drivers/media/platform/hailo/hailo15/hailo15-isp-hw.c
++++ b/drivers/media/platform/hailo/hailo15/hailo15-isp-hw.c
+@@ -85,9 +85,18 @@
+ 
+ 	/* no fe case */
+ 	if (!isp_dev->fe_enable) {
+-		if (WARN(vdid != 0,
+-			 "%s - invalid vdid %d for disabled FE\n", __func__, vdid))
+-			return -EINVAL;
++		/*
++		 * Astrial H15 carries its only sensor on CSI-RX1, so the
++		 * group-id mapping yields vdid 1. With the front-end
++		 * disabled the vdid selects nothing: the access below is a
++		 * raw register read on the single available context, which is
++		 * what 1.7.0 did before the vdid mechanism existed.
++		 * Refusing here blocks a single-sensor CSI-RX1 topology for
++		 * no reason.
++		 */
++		if (vdid != 0)
++			pr_info_once("%s - vdid %d with FE disabled, using the single raw context\n",
++				     __func__, vdid);
+ 		*val = hailo15_isp_raw_read_reg(isp_dev, reg);
+ 		return 0;
+ 	}
+@@ -190,9 +199,18 @@
+ 
+ 	/* no fe case */
+ 	if (!isp_dev->fe_enable) {
+-		if (WARN(vdid != 0,
+-			 "%s - invalid vdid %d for disabled FE\n", __func__, vdid))
+-			return -EINVAL;
++		/*
++		 * Astrial H15 carries its only sensor on CSI-RX1, so the
++		 * group-id mapping yields vdid 1. With the front-end
++		 * disabled the vdid selects nothing: the access below is a
++		 * raw register write on the single available context, which is
++		 * what 1.7.0 did before the vdid mechanism existed.
++		 * Refusing here blocks a single-sensor CSI-RX1 topology for
++		 * no reason.
++		 */
++		if (vdid != 0)
++			pr_info_once("%s - vdid %d with FE disabled, using the single raw context\n",
++				     __func__, vdid);
+ 		hailo15_isp_raw_write_reg(isp_dev, reg, val);
+ 		return 0;
+ 	}
