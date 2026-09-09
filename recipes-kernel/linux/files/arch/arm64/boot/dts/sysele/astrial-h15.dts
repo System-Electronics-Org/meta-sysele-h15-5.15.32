@@ -490,20 +490,19 @@
     };
 
     /*
-     * DSI panel. Waveshare 10.1" 1280x800 (WS-23450): the MCU on the
-     * adapter board answers at 0x45, the same address the Raspberry Pi
-     * panel uses, and it also drives the backlight over I2C, so no PWM
-     * pinctrl is needed here.
+     * DSI panel, Raspberry Pi 7" 800x480 by default.
      *
-     * To go back to the Raspberry Pi 7" 800x480, restore three lines:
-     *   compatible = "raspberrypi,7inch-touchscreen-panel";
-     *   pinctrl-names = "default";
-     *   pinctrl-0 = <&pinctrl_pwm1>;
+     * The label is what lets astrial-h15-ws101.dts and panel-ws101.dtbo
+     * reach this node, so do not drop it. Both Waveshare and Raspberry
+     * panels answer at 0x45, which is why there is one node and not two:
+     * two I2C clients cannot share an address on the same bus.
      */
-    lcd@45 {
+    panel_lcd: lcd@45 {
         status = "ok";
-        compatible = "waveshare,10.1inch-panel";
+        compatible = "raspberrypi,7inch-touchscreen-panel";
         reg = <0x45>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_pwm1>;
         port {
             panel_in: endpoint {
                 remote-endpoint = <&dsi0_out>;

@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Overlay: swap the DSI panel for the Waveshare 10.1" 1280x800 (WS-23450).
+ *
+ * Same result as astrial-h15-ws101.dtb, reached the other way: this one is
+ * applied on top of the base tree by U-Boot at boot, so panels stay separate
+ * pieces instead of multiplying into whole device trees. Select it with:
+ *
+ *     fw_setenv dtb_overlays '#conf-sysele_panel-ws101.dtbo' && reboot
+ *
+ * Note: an overlay can add or replace properties, it cannot delete them, so
+ * the base tree's PWM pinctrl stays on the node. It configures a pin nothing
+ * uses here, which is untidy but harmless.
+ */
+
+/dts-v1/;
+/plugin/;
+
+&panel_lcd {
+    compatible = "waveshare,10.1inch-panel";
+};
