@@ -46,3 +46,9 @@ SRC_URI:append = " file://i2c-gpio.cfg"
 # presents vdid 1, which the driver refuses in that mode. Experimental, the
 # reasoning is in the patch header.
 SRC_URI:append = " file://0006-isp-allow-vdid-nonzero-without-fe.patch"
+
+# Waveshare DSI 10.1" 1280x800 panel. The driver is not upstream: it comes from
+# the Raspberry Pi fork and has to be re-taken by hand on every kernel bump. The
+# patch header lists the four points to re-check when that happens.
+SRC_URI:append = " file://0007-panel-waveshare-dsi.patch \
+    file://waveshare-dsi.cfg"
