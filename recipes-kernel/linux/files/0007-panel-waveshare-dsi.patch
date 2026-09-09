@@ -1,5 +1,6 @@
-From: System Electronics
-Date: Tue, 9 Sep 2026 19:00:00 +0200
+From 439cbf8ac9d98b50d8870e6ea57db9a4e0cc790b Mon Sep 17 00:00:00 2001
+From: System Electronics <dev@systemelectronics.com>
+Date: Wed, 9 Sep 2026 16:57:44 +0200
 Subject: [PATCH] drm/panel: add the Waveshare DSI panel driver
 
 The Waveshare DSI panels (2.8" to 13.3", including the 10.1" 1280x800 we
@@ -30,12 +31,18 @@ must be re-taken from the Raspberry Pi fork and re-adapted, and the four
 points above are the list to re-check.
 
 Upstream-Status: Inappropriate [driver is downstream-only in raspberrypi/linux]
-
 ---
+ drivers/gpu/drm/panel/Kconfig               |  12 +
+ drivers/gpu/drm/panel/Makefile              |   1 +
+ drivers/gpu/drm/panel/panel-waveshare-dsi.c | 610 ++++++++++++++++++++
+ 3 files changed, 623 insertions(+)
+ create mode 100644 drivers/gpu/drm/panel/panel-waveshare-dsi.c
+
 diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
---- a/drivers/gpu/drm/panel/Kconfig	2026-09-09 15:29:44.685758095 +0200
-+++ b/drivers/gpu/drm/panel/Kconfig	2026-09-09 15:29:44.705758095 +0200
-@@ -341,6 +341,18 @@
+index af1402d..7e9b438 100644
+--- a/drivers/gpu/drm/panel/Kconfig
++++ b/drivers/gpu/drm/panel/Kconfig
+@@ -341,6 +341,18 @@ config DRM_PANEL_RASPBERRYPI_TOUCHSCREEN
  	  Pi 7" Touchscreen.  To compile this driver as a module,
  	  choose M here.
  
@@ -55,9 +62,10 @@ diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
  	tristate "Raydium RM67191 FHD 1080x1920 DSI video mode panel"
  	depends on OF
 diff --git a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
---- a/drivers/gpu/drm/panel/Makefile	2026-09-09 15:29:44.695758095 +0200
-+++ b/drivers/gpu/drm/panel/Makefile	2026-09-09 15:29:44.705758095 +0200
-@@ -32,6 +32,7 @@
+index c813205..0edcf5d 100644
+--- a/drivers/gpu/drm/panel/Makefile
++++ b/drivers/gpu/drm/panel/Makefile
+@@ -32,6 +32,7 @@ obj-$(CONFIG_DRM_PANEL_ORISETECH_OTM8009A) += panel-orisetech-otm8009a.o
  obj-$(CONFIG_DRM_PANEL_OSD_OSD101T2587_53TS) += panel-osd-osd101t2587-53ts.o
  obj-$(CONFIG_DRM_PANEL_PANASONIC_VVX10F034N00) += panel-panasonic-vvx10f034n00.o
  obj-$(CONFIG_DRM_PANEL_RASPBERRYPI_TOUCHSCREEN) += panel-raspberrypi-touchscreen.o
@@ -66,8 +74,10 @@ diff --git a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
  obj-$(CONFIG_DRM_PANEL_RAYDIUM_RM68200) += panel-raydium-rm68200.o
  obj-$(CONFIG_DRM_PANEL_RONBO_RB070D30) += panel-ronbo-rb070d30.o
 diff --git a/drivers/gpu/drm/panel/panel-waveshare-dsi.c b/drivers/gpu/drm/panel/panel-waveshare-dsi.c
---- a/drivers/gpu/drm/panel/panel-waveshare-dsi.c	1970-01-01 01:00:00.000000000 +0100
-+++ b/drivers/gpu/drm/panel/panel-waveshare-dsi.c	2026-09-09 15:29:44.695758095 +0200
+new file mode 100644
+index 0000000..291f849
+--- /dev/null
++++ b/drivers/gpu/drm/panel/panel-waveshare-dsi.c
 @@ -0,0 +1,610 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
