@@ -56,3 +56,8 @@ SRC_URI:append = " file://0006-isp-allow-vdid-nonzero-without-fe.patch"
 # patch header lists the four points to re-check when that happens.
 SRC_URI:append = " file://0007-panel-waveshare-dsi.patch \
     file://waveshare-dsi.cfg"
+
+# Panel MCU: re-send the configuration registers on every prepare. Without this
+# any DPMS off or console blank leaves the panel dark until the next boot,
+# because the MCU does not come back on the power register alone.
+SRC_URI:append = " file://0008-panel-waveshare-mcu-config-on-prepare.patch"
