@@ -73,3 +73,7 @@ SRC_URI:append = " file://0009-cdns-dsi-fix-phy-de-init.patch"
 # leave LP. Upstream fix, already in stable, plus a measurement of how long the
 # wait actually takes, which is the diagnosis we still owe the Hailo ticket.
 SRC_URI:append = " file://0010-cdns-dsi-wait-for-lanes-ready.patch"
+
+# Panel: the MCU has no readable ID, so a wrong device tree drives the wrong
+# panel silently. Say at probe what the device tree asked for.
+SRC_URI:append = " file://0011-panel-waveshare-log-selected-panel.patch"
