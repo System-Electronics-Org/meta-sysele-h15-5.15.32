@@ -1,0 +1,45 @@
+From: System Electronics
+Date: Thu, 10 Sep 2026 12:30:00 +0200
+Subject: [PATCH] drm/panel: waveshare-dsi: log which panel the device tree selected
+
+The MCU exposes nothing readable: there is no ID or version register, and
+no public register map exists for it. The driver therefore cannot detect
+which panel is physically attached, and put in front of the wrong one it
+"succeeds" and drives it at the wrong resolution, producing a broken
+image with no error anywhere in the log.
+
+With more than one device tree shipping this driver, that is the trap
+waiting for whoever selects the wrong one. Failing cleanly is not
+possible, so state at probe what the device tree asked for.
+
+---
+--- a/drivers/gpu/drm/panel/panel-waveshare-dsi.c
++++ b/drivers/gpu/drm/panel/panel-waveshare-dsi.c
+@@ -464,6 +464,7 @@
+ 		.node = NULL,
+ 	};
+ 	const struct ws_panel_data *_ws_panel_data;
++	const char *compat = NULL;
+ 	int ret;
+ 
+ 	ts = devm_kzalloc(dev, sizeof(*ts), GFP_KERNEL);
+@@ -482,6 +483,19 @@
+ 
+ 	ts->i2c = i2c;
+ 
++	/*
++	 * The MCU exposes nothing readable: there is no ID register, so the
++	 * driver cannot tell which panel is actually attached and will happily
++	 * drive a different one at the wrong resolution, with no error in the
++	 * log. With more than one device tree shipping this driver, say what
++	 * the device tree asked for, so a wrong choice is visible at boot.
++	 */
++	of_property_read_string(dev->of_node, "compatible", &compat);
++	dev_info(dev, "Waveshare panel '%s' at %pOF: %ux%u@%u, %d lane(s)\n",
++		 compat ? compat : "unknown", dev->of_node,
++		 ts->mode->hdisplay, ts->mode->vdisplay,
++		 drm_mode_vrefresh(ts->mode), _ws_panel_data->lanes);
++
+ 	ret = of_drm_get_panel_orientation(dev->of_node, &ts->orientation);
+ 	if (ret) {
+ 		dev_err(dev, "%pOF: failed to get orientation %d\n", dev->of_node, ret);
