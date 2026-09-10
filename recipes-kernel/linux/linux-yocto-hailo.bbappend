@@ -68,3 +68,8 @@ SRC_URI:append = " file://0008-panel-waveshare-mcu-config-on-prepare.patch"
 # returns. Must come after 0008: it makes real disables happen, and without
 # 0008 the panel does not come back from them.
 SRC_URI:append = " file://0009-cdns-dsi-fix-phy-de-init.patch"
+
+# cdns-dsi: video was enabled without waiting for the clock and data lanes to
+# leave LP. Upstream fix, already in stable, plus a measurement of how long the
+# wait actually takes, which is the diagnosis we still owe the Hailo ticket.
+SRC_URI:append = " file://0010-cdns-dsi-wait-for-lanes-ready.patch"
