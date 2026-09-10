@@ -61,3 +61,10 @@ SRC_URI:append = " file://0007-panel-waveshare-dsi.patch \
 # any DPMS off or console blank leaves the panel dark until the next boot,
 # because the MCU does not come back on the power register alone.
 SRC_URI:append = " file://0008-panel-waveshare-mcu-config-on-prepare.patch"
+
+# cdns-dsi: the D-PHY was initialized and powered on and never de-initialized,
+# so it was never rebuilt after a suspend. Upstream fix, plus a synchronous
+# suspend so the clock and reset cycle is guaranteed before post_disable
+# returns. Must come after 0008: it makes real disables happen, and without
+# 0008 the panel does not come back from them.
+SRC_URI:append = " file://0009-cdns-dsi-fix-phy-de-init.patch"
