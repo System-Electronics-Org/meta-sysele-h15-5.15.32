@@ -1,27 +1,25 @@
 From: System Electronics
-Date: Thu, 10 Sep 2026 12:00:00 +0200
-Subject: [PATCH] drm/panel: waveshare-dsi: reconfigure the MCU on every prepare
+Date: Thu, 11 Sep 2026 18:00:00 +0200
+Subject: [PATCH] drm/panel: waveshare-dsi: check and retry the MCU i2c writes
 
-The panel MCU is not idempotent on its power register. Measured on an
-Astrial H15 with the Waveshare 10.1" 1280x800 panel: writing 0xad=0x00
-turns the panel and its backlight off, and a following 0xad=0x01 does
-not turn them back on. The MCU needs the three configuration registers
-0xc0, 0xc2 and 0xac re-sent first.
+Make ws_panel_i2c_write() return its error and retry a few times, in the
+same shape as 0001-rpi-touchscreen-retry-reg-id-read.patch, and let
+enable() and disable() propagate the failure instead of dropping it.
 
-Those three writes lived in probe() and were issued exactly once, which
-assumes every disable is followed by a fresh probe, that is by a reboot.
-It is not. ws_panel_disable() writes 0xad=0x00 on any DPMS off, console
-blank or modeset teardown, and from there the panel stayed dark until
-the next boot.
+This is diagnostics, not a fix. On a clean boot there are no failures at
+all. It earns its place because it is how we found a failure mode of this
+MCU that was previously invisible: it can reach a state where it NACKs
+every write with -EREMOTEIO while still ACKing reads, it survives a board
+reboot and an eMMC reflash, and only a power cycle of the panel 5V rail
+clears it. Without the return value being checked and logged, that state
+produced a black panel and a completely silent log.
 
-Move them to prepare(), which runs on every enable and is where a panel
-power-on sequence belongs. prepare() was empty.
-
-While here, make ws_panel_i2c_write() return its error and retry a few
-times, in the same shape as 0001-rpi-touchscreen-retry-reg-id-read.patch,
-and let prepare/enable/disable propagate the failure instead of dropping
-it. Note that on a clean boot dmesg shows no "I2C write failed" at all,
-so this part is hygiene and not the fix.
+An earlier version of this patch also moved the 0xc0, 0xc2 and 0xac writes
+from probe() to prepare(). That part has been dropped: it was later
+measured that sending those three registers to a panel that is already on
+turns its backlight off, so they are not configuration registers, and
+prepare() runs on every enable. The move was turning the panel off every
+time the pipeline came up. They stay in probe().
 
 ---
 --- a/drivers/gpu/drm/panel/panel-waveshare-dsi.c
@@ -70,37 +68,7 @@ so this part is hygiene and not the fix.
  }
  
  static int ws_panel_unprepare(struct drm_panel *panel)
-@@ -333,7 +346,28 @@
- 
- static int ws_panel_prepare(struct drm_panel *panel)
- {
--	return 0;
-+	struct ws_panel *ts = panel_to_ts(panel);
-+	int ret;
-+
-+	/*
-+	 * These three registers are the panel MCU configuration, and they used
-+	 * to be written once in probe(). That assumed every disable would be
-+	 * followed by a fresh probe, i.e. by a reboot. It is not: 0xad is only
-+	 * the on/off switch, and after a 0xad=0x00 the MCU does not come back
-+	 * on a bare 0xad=0x01. Measured on an Astrial H15 with the 10.1 inch
-+	 * panel: any console blank left the panel dark until the next boot.
-+	 * Re-send the configuration on every prepare, which is where the panel
-+	 * power-on sequence belongs.
-+	 */
-+	ret = ws_panel_i2c_write(ts, 0xc0, 0x01);
-+	if (ret)
-+		return ret;
-+
-+	ret = ws_panel_i2c_write(ts, 0xc2, 0x01);
-+	if (ret)
-+		return ret;
-+
-+	return ws_panel_i2c_write(ts, 0xac, 0x01);
- }
- 
- static int ws_panel_enable(struct drm_panel *panel)
-@@ -341,11 +375,9 @@
+@@ -341,11 +354,9 @@
  	struct ws_panel *ts = panel_to_ts(panel);
  
  	if (ts->mode == &ws_panel_13_3_2lane_mode)
@@ -114,14 +82,3 @@ so this part is hygiene and not the fix.
  }
  
  static int ws_panel_get_modes(struct drm_panel *panel,
-@@ -450,10 +482,6 @@
- 
- 	ts->i2c = i2c;
- 
--	ws_panel_i2c_write(ts, 0xc0, 0x01);
--	ws_panel_i2c_write(ts, 0xc2, 0x01);
--	ws_panel_i2c_write(ts, 0xac, 0x01);
--
- 	ret = of_drm_get_panel_orientation(dev->of_node, &ts->orientation);
- 	if (ret) {
- 		dev_err(dev, "%pOF: failed to get orientation %d\n", dev->of_node, ret);
