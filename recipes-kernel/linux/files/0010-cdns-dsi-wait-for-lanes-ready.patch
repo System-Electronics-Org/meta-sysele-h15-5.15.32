@@ -53,17 +53,11 @@ what fixed anything, and the credit belongs to the phy de-init patch.
  
  	if (WARN_ON(pm_runtime_get_sync(dsi->base.dev) < 0))
  		return;
-@@ -804,6 +809,31 @@
+@@ -804,6 +809,25 @@
  	cdns_dsi_hs_init(dsi);
  	cdns_dsi_init_link(dsi);
  
-+	/*
-+	 * The controller must not be told to send video before the D-PHY clock
-+	 * and data lanes have completed their LP to HS transition. Nothing used
-+	 * to check: VID_EN was raised blind. Wait for the lanes, and report how
-+	 * long it took, because a long first wait followed by short ones is
-+	 * itself the diagnosis.
-+	 */
++	/* Wait for clock and data lanes before enabling video, and log how long. */
 +	lane_mask = CLK_LANE_RDY;
 +	for (i = 0; i < nlanes; i++)
 +		lane_mask |= DATA_LANE_RDY(i);
