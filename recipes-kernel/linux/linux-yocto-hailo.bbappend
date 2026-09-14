@@ -94,3 +94,7 @@ SRC_URI:append = " file://0015-cdns-dsi-clear-stale-lane-ready-flags.patch"
 
 # cdns-dsi: log a failed phy_power_on instead of ignoring it.
 SRC_URI:append = " file://0016-cdns-dsi-report-failed-phy-power-on.patch"
+
+# D-PHY: keep the calibration wait time field when starting the state machine,
+# as mainline, instead of overwriting the whole register.
+SRC_URI:append = " file://0017-cdns-dphy-preserve-ssm-calibration-wait-time.patch"
