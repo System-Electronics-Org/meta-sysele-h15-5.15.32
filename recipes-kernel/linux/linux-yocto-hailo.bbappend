@@ -98,3 +98,7 @@ SRC_URI:append = " file://0016-cdns-dsi-report-failed-phy-power-on.patch"
 # D-PHY: keep the calibration wait time field when starting the state machine,
 # as mainline, instead of overwriting the whole register.
 SRC_URI:append = " file://0017-cdns-dphy-preserve-ssm-calibration-wait-time.patch"
+
+# D-PHY: PSM divider set up in power_on, as mainline. First patch to drop if
+# this series makes things worse: it changes register programming order.
+SRC_URI:append = " file://0018-cdns-dphy-set-up-psm-in-power-on.patch"
