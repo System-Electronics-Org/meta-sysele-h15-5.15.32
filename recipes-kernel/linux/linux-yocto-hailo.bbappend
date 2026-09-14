@@ -88,3 +88,7 @@ SRC_URI:append = " file://0013-cdns-dphy-guard-power-on.patch"
 # D-PHY: pm_runtime calls with no hardware effect, absent in mainline.
 # esc_clk handling stays, it is a Hailo addition.
 SRC_URI:append = " file://0014-cdns-dphy-drop-pm-runtime-calls.patch"
+
+# cdns-dsi: clear the lane ready flags together with PLL_LOCKED, so the wait
+# measured by 0010 is real on every cycle and not only on the first one.
+SRC_URI:append = " file://0015-cdns-dsi-clear-stale-lane-ready-flags.patch"

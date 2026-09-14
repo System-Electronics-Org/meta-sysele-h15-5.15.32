@@ -1,0 +1,51 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 10:30:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: clear stale lane ready flags before starting the link
+
+0010 waits for CLK_LANE_RDY and DATA_LANE_RDY(i) in MCTL_MAIN_STS
+without clearing them first, and mainline does the same. The same driver
+does clear PLL_LOCKED in MCTL_MAIN_STS_CLR before activating the PLL.
+
+On Astrial H15 the lane wait measures about 262 ms on the first modeset
+after boot, on every boot, and 0 us on every modeset after that,
+including right after PLL and lanes had been stopped by hand at register
+level. That is what flags left over from the previous bring-up look
+like. With them uncleared, no lane measurement after the first one can be
+trusted.
+
+Clear the lane flags together with PLL_LOCKED, which is before the PHY
+is powered and before the lane resets are released. Not right before the
+poll in bridge_enable: the lanes come up during pre_enable, so clearing
+there would erase an event that has already happened and make the poll
+time out on every cycle whether or not anything is wrong. Placed here,
+the measurement is correct whether those bits are live status or latched
+flags.
+
+After this patch a "Timed Out: DSI-DPhy Clock and Data Lanes not ready"
+message is a measurement, not a regression.
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -714,7 +714,8 @@
+ static void cdns_dsi_hs_init(struct cdns_dsi *dsi)
+ {
+ 	struct cdns_dsi_output *output = &dsi->output;
+-	u32 status;
++	u32 status, stale;
++	int i;
+ 	
+ 	if (dsi->phy_initialized)
+ 		return;
+@@ -733,7 +734,10 @@
+ 	phy_power_on(dsi->dphy);
+ 
+ 	/* Activate the PLL and wait until it's locked. */
+-	writel(PLL_LOCKED, dsi->regs + MCTL_MAIN_STS_CLR);
++	stale = PLL_LOCKED | CLK_LANE_RDY;
++	for (i = 0; i < output->dev->lanes; i++)
++		stale |= DATA_LANE_RDY(i);
++	writel(stale, dsi->regs + MCTL_MAIN_STS_CLR);
+ 	writel(DPHY_CMN_PSO | DPHY_ALL_D_PDN | DPHY_C_PDN | DPHY_CMN_PDN,
+ 	       dsi->regs + MCTL_DPHY_CFG0);
+ 	WARN_ON_ONCE(readl_poll_timeout(dsi->regs + MCTL_MAIN_STS, status,
