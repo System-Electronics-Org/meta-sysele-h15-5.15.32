@@ -1,0 +1,51 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 17:00:00 +0200
+Subject: [PATCH] phy: cdns-dphy: diagnostic override of the calibration wait time
+
+Diagnostic only, inert by default. The kernel parameter
+cdns_dphy.cal_wait_time=N, with N in 0..255, forces the
+DPHY_CMN_SSM_CAL_WAIT_TIME field when the TX state machine is started.
+The default, -1, keeps the value read from the register, which is the
+behaviour introduced by 0017.
+
+On Astrial H15 the first power on of the PHY after reset waits for the
+lanes 320 us with the reset value 20, and 262 ms when the field is 0,
+which is what the driver wrote before 0017. The build before 0017 showed
+an image at boot and this one does not. Booting with cal_wait_time=0 is
+the positive control: it reproduces the old behaviour without reverting
+anything.
+
+No log line on purpose: a printk on the 115200 serial console costs about
+8 ms and would move the timing being measured. The value in use is in
+/sys/module/cdns_dphy/parameters/cal_wait_time.
+
+Upstream-Status: Inappropriate [diagnostic, to be removed]
+
+---
+--- a/drivers/phy/cadence/cdns-dphy.c
++++ b/drivers/phy/cadence/cdns-dphy.c
+@@ -313,6 +313,10 @@
+ 	return 0;
+ }
+ 
++static int cal_wait_time = -1;
++module_param(cal_wait_time, int, 0444);
++MODULE_PARM_DESC(cal_wait_time, "Diagnostic: force DPHY_CMN_SSM_CAL_WAIT_TIME to 0..255 at power on, -1 keeps it");
++
+ static int cdns_dphy_power_on(struct phy *phy)
+ {
+ 	struct cdns_dphy *dphy = phy_get_drvdata(phy);
+@@ -336,9 +340,10 @@
+ 	}
+ 
+ 	/* Start TX state machine. */
+-	reg = readl(dphy->regs + DPHY_CMN_SSM);
+-	writel((reg & DPHY_CMN_SSM_CAL_WAIT_TIME) | DPHY_CMN_SSM_EN | DPHY_CMN_TX_MODE_EN,
+-	       dphy->regs + DPHY_CMN_SSM);
++	reg = readl(dphy->regs + DPHY_CMN_SSM) & DPHY_CMN_SSM_CAL_WAIT_TIME;
++	if (cal_wait_time >= 0 && cal_wait_time <= 255)
++		reg = FIELD_PREP(DPHY_CMN_SSM_CAL_WAIT_TIME, cal_wait_time);
++	writel(reg | DPHY_CMN_SSM_EN | DPHY_CMN_TX_MODE_EN, dphy->regs + DPHY_CMN_SSM);
+ 
+ 	dphy->is_powered = true;
+ 	return 0;

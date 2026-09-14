@@ -102,3 +102,7 @@ SRC_URI:append = " file://0017-cdns-dphy-preserve-ssm-calibration-wait-time.patc
 # D-PHY: PSM divider set up in power_on, as mainline. First patch to drop if
 # this series makes things worse: it changes register programming order.
 SRC_URI:append = " file://0018-cdns-dphy-set-up-psm-in-power-on.patch"
+
+# Diagnostic, inert by default: cdns_dphy.cal_wait_time=N forces the PHY
+# calibration wait at power on. To be removed once the boot threshold is known.
+SRC_URI:append = " file://0019-cdns-dphy-diagnostic-cal-wait-time.patch"
