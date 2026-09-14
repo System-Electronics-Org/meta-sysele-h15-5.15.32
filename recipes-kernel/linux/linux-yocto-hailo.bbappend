@@ -110,3 +110,7 @@ SRC_URI:append = " file://0019-cdns-dphy-diagnostic-cal-wait-time.patch"
 # Diagnostic, inert by default: cdns_dsi.video_delay_ms=N delays VID_EN where
 # the old 262 ms were. To be removed once the boot threshold is known.
 SRC_URI:append = " file://0020-cdns-dsi-diagnostic-video-delay.patch"
+
+# Diagnostic, inert by default: hailo_drm.first_enable_delay_ms=N delays the
+# first DPI scanout after probe. To be removed once the boot threshold is known.
+SRC_URI:append = " file://0021-hailo-drm-diagnostic-first-enable-delay.patch"
