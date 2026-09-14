@@ -81,3 +81,6 @@ SRC_URI:append = " file://0011-panel-waveshare-log-selected-panel.patch"
 # D-PHY: power_off never stopped the TX state machine that power_on starts.
 # Aligned with mainline.
 SRC_URI:append = " file://0012-cdns-dphy-stop-tx-state-machine-in-power-off.patch"
+
+# D-PHY: is_configured / is_powered state and the power_on guard, as mainline.
+SRC_URI:append = " file://0013-cdns-dphy-guard-power-on.patch"

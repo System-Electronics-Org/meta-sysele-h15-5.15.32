@@ -1,0 +1,62 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 10:10:00 +0200
+Subject: [PATCH] phy: cdns-dphy: refuse power_on when unconfigured or already powered
+
+Mainline tracks two states in struct cdns_dphy: is_configured, raised at
+the end of a successful cdns_dphy_configure(), and is_powered, raised at
+the end of cdns_dphy_power_on() and dropped in cdns_dphy_power_off().
+power_on refuses to run unless the PHY is configured and not yet
+powered. Our driver had neither field.
+
+The phy core already reference counts power_on and power_off through
+power_count, so in the normal flow this guard should never fire. Its
+value is turning a call made in the wrong state into -EINVAL instead of
+silently re-running the start sequence. The core logs the failure
+against the phy device, and 0016 logs it on the DSI side as well.
+
+---
+--- a/drivers/phy/cadence/cdns-dphy.c
++++ b/drivers/phy/cadence/cdns-dphy.c
+@@ -95,6 +95,8 @@
+ 	struct clk *esc_clk;
+ 	const struct cdns_dphy_ops *ops;
+ 	struct phy *phy;
++	bool is_configured;
++	bool is_powered;
+ };
+ 
+ /* Order of bands is important since the index is the band number. */
+@@ -314,6 +316,7 @@
+ 	      FIELD_PREP(DPHY_BAND_CFG_RIGHT_BAND, band_ctrl);
+ 	writel(reg, dphy->regs + DPHY_BAND_CFG);
+ 
++	dphy->is_configured = true;
+ 	return 0;
+ }
+ 
+@@ -321,6 +324,9 @@
+ {
+ 	struct cdns_dphy *dphy = phy_get_drvdata(phy);
+ 
++	if (!dphy->is_configured || dphy->is_powered)
++		return -EINVAL;
++
+ 	pm_runtime_get_sync(&phy->dev);
+ 	pm_runtime_set_active(&phy->dev);
+ 	pm_runtime_enable(&phy->dev);
+@@ -333,6 +339,7 @@
+ 	writel(DPHY_CMN_SSM_EN | DPHY_CMN_TX_MODE_EN,
+ 	       dphy->regs + DPHY_CMN_SSM);
+ 
++	dphy->is_powered = true;
+ 	return 0;
+ }
+ 
+@@ -348,6 +355,7 @@
+ 	/* Stop TX state machine. */
+ 	reg = readl(dphy->regs + DPHY_CMN_SSM);
+ 	writel(reg & ~DPHY_CMN_SSM_EN, dphy->regs + DPHY_CMN_SSM);
++	dphy->is_powered = false;
+ 
+ 	pm_runtime_put_sync(&phy->dev);
+ 	pm_runtime_set_suspended(&phy->dev);
