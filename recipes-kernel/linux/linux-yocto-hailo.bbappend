@@ -84,3 +84,7 @@ SRC_URI:append = " file://0012-cdns-dphy-stop-tx-state-machine-in-power-off.patc
 
 # D-PHY: is_configured / is_powered state and the power_on guard, as mainline.
 SRC_URI:append = " file://0013-cdns-dphy-guard-power-on.patch"
+
+# D-PHY: pm_runtime calls with no hardware effect, absent in mainline.
+# esc_clk handling stays, it is a Hailo addition.
+SRC_URI:append = " file://0014-cdns-dphy-drop-pm-runtime-calls.patch"

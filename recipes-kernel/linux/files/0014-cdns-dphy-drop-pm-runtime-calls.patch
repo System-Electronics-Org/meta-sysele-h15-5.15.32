@@ -1,0 +1,49 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 10:20:00 +0200
+Subject: [PATCH] phy: cdns-dphy: drop the pm_runtime calls from power_on and power_off
+
+Mainline cdns-dphy.c has no pm_runtime call anywhere. Ours called
+pm_runtime_get_sync(), pm_runtime_set_active() and pm_runtime_enable()
+on &phy->dev in power_on, and pm_runtime_put_sync(),
+pm_runtime_set_suspended() and pm_runtime_disable() in power_off.
+
+They had no effect on the hardware. phy_create() enables runtime PM on
+&phy->dev only if the parent platform device has it enabled, and ours
+does not: runtime_status of 7c01a000.dphy reads "unsupported" even on a
+clean boot. So &phy->dev has no runtime PM callbacks and those calls only
+moved bookkeeping. They did have one side effect: once power_on had
+enabled runtime PM on &phy->dev, the phy core's own
+phy_pm_runtime_get_sync() and phy_pm_runtime_put() stopped returning
+-ENOTSUPP and started acting on it. Nothing needs that state.
+
+esc_clk is kept, in all four places. It is a Hailo addition that
+mainline does not have, and its clk_disable_unprepare() in power_off has
+to stay: removing it along with the pm_runtime calls would leave a clock
+enabled after every power cycle, the same kind of imbalance this series
+is removing.
+
+---
+--- a/drivers/phy/cadence/cdns-dphy.c
++++ b/drivers/phy/cadence/cdns-dphy.c
+@@ -327,10 +327,6 @@
+ 	if (!dphy->is_configured || dphy->is_powered)
+ 		return -EINVAL;
+ 
+-	pm_runtime_get_sync(&phy->dev);
+-	pm_runtime_set_active(&phy->dev);
+-	pm_runtime_enable(&phy->dev);
+-
+ 	clk_prepare_enable(dphy->psm_clk);
+ 	clk_prepare_enable(dphy->pll_ref_clk);
+ 	clk_prepare_enable(dphy->esc_clk);
+@@ -356,10 +352,6 @@
+ 	reg = readl(dphy->regs + DPHY_CMN_SSM);
+ 	writel(reg & ~DPHY_CMN_SSM_EN, dphy->regs + DPHY_CMN_SSM);
+ 	dphy->is_powered = false;
+-
+-	pm_runtime_put_sync(&phy->dev);
+-	pm_runtime_set_suspended(&phy->dev);
+-	pm_runtime_disable(&phy->dev);
+ 	return 0;
+ }
+ 
