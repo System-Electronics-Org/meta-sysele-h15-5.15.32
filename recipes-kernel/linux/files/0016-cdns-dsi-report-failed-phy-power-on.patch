@@ -1,0 +1,35 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 10:40:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: report a failed phy_power_on
+
+cdns_dsi_hs_init() ignored the return value of phy_power_on(). With the
+guard added in 0013, a power_on in the wrong state returns -EINVAL, and
+the link bring-up would carry on as if the PHY were up.
+
+The phy core already logs "phy poweron failed" against the phy device.
+This adds the line on the DSI side, where the bring-up continues
+regardless, so the two can be read together.
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -715,7 +715,7 @@
+ {
+ 	struct cdns_dsi_output *output = &dsi->output;
+ 	u32 status, stale;
+-	int i;
++	int i, ret;
+ 	
+ 	if (dsi->phy_initialized)
+ 		return;
+@@ -731,7 +731,9 @@
+ 	phy_init(dsi->dphy);
+ 	phy_set_mode(dsi->dphy, PHY_MODE_MIPI_DPHY);
+ 	phy_configure(dsi->dphy, &output->phy_opts);
+-	phy_power_on(dsi->dphy);
++	ret = phy_power_on(dsi->dphy);
++	if (ret)
++		dev_err(dsi->base.dev, "phy_power_on failed: %d\n", ret);
+ 
+ 	/* Activate the PLL and wait until it's locked. */
+ 	stale = PLL_LOCKED | CLK_LANE_RDY;
