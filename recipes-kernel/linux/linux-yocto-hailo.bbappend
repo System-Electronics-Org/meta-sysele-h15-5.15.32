@@ -57,16 +57,15 @@ SRC_URI:append = " file://0006-isp-allow-vdid-nonzero-without-fe.patch"
 SRC_URI:append = " file://0007-panel-waveshare-dsi.patch \
     file://waveshare-dsi.cfg"
 
-# Panel MCU: re-send the configuration registers on every prepare. Without this
-# any DPMS off or console blank leaves the panel dark until the next boot,
-# because the MCU does not come back on the power register alone.
-SRC_URI:append = " file://0008-panel-waveshare-mcu-config-on-prepare.patch"
+# Panel MCU: check and retry every i2c write and log the failure. Diagnostics:
+# it is how the MCU state that NACKs every write while still ACKing reads was
+# found. The configuration registers stay in probe.
+SRC_URI:append = " file://0008-panel-waveshare-check-and-retry-mcu-writes.patch"
 
 # cdns-dsi: the D-PHY was initialized and powered on and never de-initialized,
 # so it was never rebuilt after a suspend. Upstream fix, plus a synchronous
 # suspend so the clock and reset cycle is guaranteed before post_disable
-# returns. Must come after 0008: it makes real disables happen, and without
-# 0008 the panel does not come back from them.
+# returns.
 SRC_URI:append = " file://0009-cdns-dsi-fix-phy-de-init.patch"
 
 # cdns-dsi: video was enabled without waiting for the clock and data lanes to
