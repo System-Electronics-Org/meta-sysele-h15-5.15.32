@@ -106,3 +106,7 @@ SRC_URI:append = " file://0018-cdns-dphy-set-up-psm-in-power-on.patch"
 # Diagnostic, inert by default: cdns_dphy.cal_wait_time=N forces the PHY
 # calibration wait at power on. To be removed once the boot threshold is known.
 SRC_URI:append = " file://0019-cdns-dphy-diagnostic-cal-wait-time.patch"
+
+# Diagnostic, inert by default: cdns_dsi.video_delay_ms=N delays VID_EN where
+# the old 262 ms were. To be removed once the boot threshold is known.
+SRC_URI:append = " file://0020-cdns-dsi-diagnostic-video-delay.patch"
