@@ -23,17 +23,11 @@ possible, so state at probe what the device tree asked for.
  	int ret;
  
  	ts = devm_kzalloc(dev, sizeof(*ts), GFP_KERNEL);
-@@ -461,6 +462,19 @@
+@@ -461,6 +462,13 @@
  
  	ts->i2c = i2c;
  
-+	/*
-+	 * The MCU exposes no ID register and no public register map, so the
-+	 * driver cannot tell which panel is actually attached and will happily
-+	 * drive a different one at the wrong resolution, with no error in the
-+	 * log. With more than one device tree shipping this driver, say what
-+	 * the device tree asked for, so a wrong choice is visible at boot.
-+	 */
++	/* The MCU has no ID register: log what the device tree selected. */
 +	of_property_read_string(dev->of_node, "compatible", &compat);
 +	dev_info(dev, "Waveshare panel '%s' at %pOF: %ux%u@%u, %d lane(s)\n",
 +		 compat ? compat : "unknown", dev->of_node,
