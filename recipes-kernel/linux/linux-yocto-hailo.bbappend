@@ -77,3 +77,7 @@ SRC_URI:append = " file://0010-cdns-dsi-wait-for-lanes-ready.patch"
 # Panel: the MCU has no readable ID, so a wrong device tree drives the wrong
 # panel silently. Say at probe what the device tree asked for.
 SRC_URI:append = " file://0011-panel-waveshare-log-selected-panel.patch"
+
+# D-PHY: power_off never stopped the TX state machine that power_on starts.
+# Aligned with mainline.
+SRC_URI:append = " file://0012-cdns-dphy-stop-tx-state-machine-in-power-off.patch"
