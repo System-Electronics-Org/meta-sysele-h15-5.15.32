@@ -129,3 +129,7 @@ SRC_URI:append = " file://0024-cdns-dsi-vsg-watchdog.patch"
 
 # cdns-dsi: force the lane stop state during PHY bring-up, from mainline.
 SRC_URI:append = " file://0025-cdns-dsi-force-stop-state-during-phy-init.patch"
+
+# cdns-dsi: declare negative syncs and DE high in an atomic check, from
+# mainline. First patch to drop if the modeset breaks.
+SRC_URI:append = " file://0026-cdns-dsi-negative-syncs-and-bus-flags.patch"
