@@ -9,7 +9,10 @@ to restart on the next enable.
 
 Measured on 20 instrumented pipeline exits: the 3 that stopped without
 ERR_MISSING_DATA all came back, the 17 that did not all failed. A clean
-stop takes 2.26 ms.
+stop takes 2.26 ms and the slowest stop seen, on an exit that was already
+losing data, takes 18 ms, so the wait is bounded at 50 ms. The poll
+returns as soon as the generator stops, so a wider bound costs nothing on
+the exits that do not need it.
 
 The wait runs in the atomic commit tail, which may sleep, so the sleeping
 form of readl_poll_timeout is used. cdns_dsi.disable_wait_ms bounds it and
@@ -24,7 +27,7 @@ Upstream-Status: Pending
  	return MODE_OK;
  }
  
-+static unsigned int disable_wait_ms = 20;
++static unsigned int disable_wait_ms = 50;
 +module_param(disable_wait_ms, uint, 0444);
 +MODULE_PARM_DESC(disable_wait_ms, "Max ms to wait at disable for the video stream generator to stop");
 +
