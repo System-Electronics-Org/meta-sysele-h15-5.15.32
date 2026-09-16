@@ -1,0 +1,62 @@
+From: System Electronics
+Date: Wed, 16 Sep 2026 11:10:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: wait for the VSG to stop at disable
+
+VID_EN is cleared and the function returns right away. The DPI
+reprogramming that follows takes the data away while the video stream
+generator is still finishing its frame, and the generator then fails
+to restart on the next enable.
+
+Measured on 20 instrumented pipeline exits: the 3 that stopped without
+ERR_MISSING_DATA all came back, the 17 that did not all failed. A clean
+stop takes 2.26 ms.
+
+The wait runs in the atomic commit tail, which may sleep, so the sleeping
+form of readl_poll_timeout is used. cdns_dsi.disable_wait_ms bounds it and
+cdns_dsi.vsg_disable_timeouts counts the times it expired.
+
+Upstream-Status: Pending
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -696,17 +696,38 @@
+ 	return MODE_OK;
+ }
+ 
++static unsigned int disable_wait_ms = 20;
++module_param(disable_wait_ms, uint, 0444);
++MODULE_PARM_DESC(disable_wait_ms, "Max ms to wait at disable for the video stream generator to stop");
++
++static unsigned int vsg_disable_timeouts;
++module_param(vsg_disable_timeouts, uint, 0444);
++MODULE_PARM_DESC(vsg_disable_timeouts, "Disables where the generator was still running when the wait expired");
++
+ static void cdns_dsi_bridge_disable(struct drm_bridge *bridge)
+ {
+ 	struct cdns_dsi_input *input = bridge_to_cdns_dsi_input(bridge);
+ 	struct cdns_dsi *dsi = input_to_dsi(input);
+-	u32 val;
++	u32 val, sts;
++	int ret;
+ 
+ 	val = readl(dsi->regs + MCTL_MAIN_DATA_CTL);
+ 	val &= ~(IF_VID_SELECT_MASK | IF_VID_MODE | VID_EN | HOST_EOT_GEN |
+ 		 DISP_EOT_GEN);
+ 	writel(val, dsi->regs + MCTL_MAIN_DATA_CTL);
+ 
++	/* Let the generator finish before anything reprograms the input. */
++	ret = readl_poll_timeout(dsi->regs + VID_MODE_STS, sts,
++				 !(sts & VSG_RUNNING), 100,
++				 disable_wait_ms * 1000);
++	if (ret) {
++		vsg_disable_timeouts++;
++		if (vsg_disable_timeouts == 1 || !(vsg_disable_timeouts % 16))
++			dev_warn(dsi->base.dev,
++				 "video stream generator still running %u ms after VID_EN, VID_MODE_STS 0x%08x (%u so far)\n",
++				 disable_wait_ms, sts, vsg_disable_timeouts);
++	}
++
+ 	val = readl(dsi->regs + MCTL_MAIN_EN) & ~IF_EN(input->id);
+ 	writel(val, dsi->regs + MCTL_MAIN_EN);
+ 	pm_runtime_put(dsi->base.dev);

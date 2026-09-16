@@ -118,3 +118,7 @@ SRC_URI:append = " file://0021-hailo-drm-diagnostic-first-enable-delay.patch"
 # hailo-drm: the two DPI frame counters one cycle apart, from the computed
 # value. Equal values make the DPI stall after about 35000 frames.
 SRC_URI:append = " file://0022-hailo-drm-frame-counter-off-by-one.patch"
+
+# cdns-dsi: at disable, wait for the video stream generator to stop before
+# returning, so the next enable does not inherit a half finished frame.
+SRC_URI:append = " file://0023-cdns-dsi-wait-for-vsg-to-stop-at-disable.patch"
