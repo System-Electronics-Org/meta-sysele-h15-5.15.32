@@ -133,3 +133,7 @@ SRC_URI:append = " file://0025-cdns-dsi-force-stop-state-during-phy-init.patch"
 # cdns-dsi: declare negative syncs and DE high in an atomic check, from
 # mainline. First patch to drop if the modeset breaks.
 SRC_URI:append = " file://0026-cdns-dsi-negative-syncs-and-bus-flags.patch"
+
+# Working defaults for the two enable delays: 300 ms once at first scanout,
+# 20 ms before VID_EN on every enable.
+SRC_URI:append = " file://0027-dsi-enable-delay-defaults.patch"
