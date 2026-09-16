@@ -8,12 +8,17 @@ panel declares no sync polarity at all, so the mode carries flags 0 and
 the requirement stays implicit.
 
 Backport of Tomi Valkeinen's "drm/bridge: cdns-dsi: Fix mode and bus
-flags". The bridge here still uses the legacy hooks, so the atomic state
-helpers come with it, otherwise the check would never run.
+flags". The bridge here still uses the legacy hooks, so atomic_check only
+runs once the bridge carries its own state: the state helpers come with it
+and go behind the same switch.
 
-The DPI driver on this SoC ignores bus flags, so on this board nothing
-changes today. It is in for the alignment and to make the requirement
-explicit where a reader will look for it.
+It is off by default, behind cdns_dsi.declare_bus_flags. Register dumps
+taken with a healthy stream, before and after, are identical bit for bit
+including VID_MAIN_CTL, so on this board it changes nothing today: the DPI
+driver ignores bus flags. It is in for the alignment and to make the
+requirement explicit where a reader will look for it, and moving a legacy
+bridge onto its own state is not something to hand a display that has to
+run a trade show.
 
 Upstream-Status: Backport
 
@@ -28,10 +33,14 @@ Upstream-Status: Backport
  #include <drm/drm_bridge.h>
  #include <drm/drm_drv.h>
  #include <drm/drm_mipi_dsi.h>
-@@ -1172,6 +1173,24 @@
+@@ -1172,6 +1173,28 @@
  	pm_runtime_put_sync_suspend(dsi->base.dev);
  }
  
++static bool declare_bus_flags;
++module_param(declare_bus_flags, bool, 0444);
++MODULE_PARM_DESC(declare_bus_flags, "Declare negative syncs and DE high towards the input bridge");
++
 +static int cdns_dsi_bridge_atomic_check(struct drm_bridge *bridge,
 +					struct drm_bridge_state *bridge_state,
 +					struct drm_crtc_state *crtc_state,
@@ -53,14 +62,38 @@ Upstream-Status: Backport
  static const struct drm_bridge_funcs cdns_dsi_bridge_funcs = {
  	.attach = cdns_dsi_bridge_attach,
  	.mode_valid = cdns_dsi_bridge_mode_valid,
-@@ -1179,6 +1198,10 @@
- 	.pre_enable = cdns_dsi_bridge_pre_enable,
- 	.enable = cdns_dsi_bridge_enable,
+@@ -1181,6 +1204,24 @@
  	.post_disable = cdns_dsi_bridge_post_disable,
+ };
+ 
++/*
++ * atomic_check only runs on a bridge that carries its own state, so the
++ * state helpers belong to the same switch: with declare_bus_flags off the
++ * bridge stays on the legacy path it has always used.
++ */
++static const struct drm_bridge_funcs cdns_dsi_bridge_funcs_atomic = {
++	.attach = cdns_dsi_bridge_attach,
++	.mode_valid = cdns_dsi_bridge_mode_valid,
++	.disable = cdns_dsi_bridge_disable,
++	.pre_enable = cdns_dsi_bridge_pre_enable,
++	.enable = cdns_dsi_bridge_enable,
++	.post_disable = cdns_dsi_bridge_post_disable,
 +	.atomic_check = cdns_dsi_bridge_atomic_check,
 +	.atomic_duplicate_state = drm_atomic_helper_bridge_duplicate_state,
 +	.atomic_destroy_state = drm_atomic_helper_bridge_destroy_state,
 +	.atomic_reset = drm_atomic_helper_bridge_reset,
- };
- 
++};
++
  static int cdns_dsi_attach(struct mipi_dsi_host *host,
+ 			   struct mipi_dsi_device *dev)
+ {
+@@ -1499,7 +1540,8 @@
+ 	writel(0, dsi->regs + MCTL_MAIN_PHY_CTL);
+ 
+ 	input->id = CDNS_SDI_INPUT;
+-	input->bridge.funcs = &cdns_dsi_bridge_funcs;
++	input->bridge.funcs = declare_bus_flags ? &cdns_dsi_bridge_funcs_atomic :
++						  &cdns_dsi_bridge_funcs;
+ 	input->bridge.of_node = pdev->dev.of_node;
+ 
+ 	/* Mask all interrupts before registering the IRQ handler. */
