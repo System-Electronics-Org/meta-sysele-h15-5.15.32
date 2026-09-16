@@ -126,3 +126,6 @@ SRC_URI:append = " file://0023-cdns-dsi-wait-for-vsg-to-stop-at-disable.patch"
 # cdns-dsi: watchdog that restarts the generator when it stops with errors.
 # The net, not the fix: its counters should stay at zero.
 SRC_URI:append = " file://0024-cdns-dsi-vsg-watchdog.patch"
+
+# cdns-dsi: force the lane stop state during PHY bring-up, from mainline.
+SRC_URI:append = " file://0025-cdns-dsi-force-stop-state-during-phy-init.patch"
