@@ -10,6 +10,7 @@ SRC_URI = " \
     file://sysele-motd.sh \
     file://sysele-path.sh \
     file://sysele-info \
+    file://sysele-config \
     file://dsi_status \
     file://dsi_stream \
     file://dsi_config \
@@ -30,7 +31,7 @@ SRC_URI = " \
 # write DSI and DPI registers through /dev/mem at full speed and can stop the
 # panel, so they stay in their own directory, out of the PATH, where they have to
 # be asked for by name.
-SYSELE_CMD_SH = "dsi_status dsi_stream dsi_config reg_dump"
+SYSELE_CMD_SH = "sysele-config dsi_status dsi_stream dsi_config reg_dump"
 SYSELE_CMD_C = "dsi_trace"
 SYSELE_DIAG_C = "vsg_period vsg_watchdog clr_keeper dpi_stopper"
 
@@ -81,6 +82,32 @@ do_install() {
 SYSELE_EOF
 
     install -m 0755 ${WORKDIR}/sysele-info ${D}${SYSELE_DIR}/bin/sysele-info
+
+    # What sysele-config is allowed to select, derived from the same variable
+    # that puts the trees in the FIT: a hand written list would drift from the
+    # image the first time a variant is added. Names here are FIT configuration
+    # names, and a name that does not exist is a board that does not boot, so
+    # the tool refuses anything that is not in this file.
+    list=${D}${SYSELE_DIR}/share/boot-config.list
+    : > $list
+    for e in ${KERNEL_DEVICETREE}; do
+        file=$(basename $e)
+        name=$(echo $file | sed 's/\.[^.]*$//')
+        case $e in
+            */*) vendor=$(dirname $e)_ ;;
+            *)   vendor= ;;
+        esac
+        case $file in
+            *.dtbo) type=overlay; conf="#conf-${vendor}$file" ;;
+            *.dtb)  conf="conf-${vendor}$file"
+                    if [ "$name" = "${MACHINE}" ]; then type=base-default; else type=base; fi ;;
+            *) continue ;;
+        esac
+        label=$(echo "${SYSELE_DT_LABELS}" | tr '|' '\n' | sed -n "s|^$name=||p")
+        [ -n "$label" ] || label=$name
+        printf '%s\t%s\t%s\t%s\n' "$type" "$name" "$conf" "$label" >> $list
+    done
+    chmod 0644 $list
     for t in ${SYSELE_CMD_SH}; do
         install -m 0755 ${WORKDIR}/$t ${D}${SYSELE_DIR}/bin/$t
     done
