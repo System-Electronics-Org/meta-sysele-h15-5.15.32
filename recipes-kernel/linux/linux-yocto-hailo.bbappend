@@ -114,3 +114,7 @@ SRC_URI:append = " file://0020-cdns-dsi-diagnostic-video-delay.patch"
 # Diagnostic, inert by default: hailo_drm.first_enable_delay_ms=N delays the
 # first DPI scanout after probe. To be removed once the boot threshold is known.
 SRC_URI:append = " file://0021-hailo-drm-diagnostic-first-enable-delay.patch"
+
+# hailo-drm: the two DPI frame counters one cycle apart, from the computed
+# value. Equal values make the DPI stall after about 35000 frames.
+SRC_URI:append = " file://0022-hailo-drm-frame-counter-off-by-one.patch"
