@@ -1,29 +1,38 @@
 SUMMARY = "System Electronics tools for Astrial H15"
-DESCRIPTION = "Skeleton package for System Electronics board tools. Installs \
-under /opt/sysele and currently ships only the build banner, so that a future \
-production image can drop the whole package with a single line instead of \
-deleting files from the rootfs."
+DESCRIPTION = "Board tools and bring-up instruments for Astrial H15. Everything \
+lives under /opt/sysele so that a production image can drop the whole package \
+with a single line instead of deleting files from the rootfs, and the commands \
+reach the shell through the PATH snippet and the symlinks in ${bindir}."
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
 
 SRC_URI = " \
     file://sysele-motd.sh \
+    file://sysele-path.sh \
     file://sysele-info \
-    file://vsg.sh \
-    file://regdump.sh \
-    file://stream.sh \
-    file://setup.sh \
-    file://vsg_trace.c \
+    file://dsi_status \
+    file://dsi_stream \
+    file://dsi_config \
+    file://reg_dump \
+    file://dsi_trace.c \
     file://vsg_period.c \
     file://vsg_watchdog.c \
     file://clr_keeper.c \
     file://dpi_stopper.c \
 "
 
-# Display bring-up and diagnostic tools. The C ones read and write the DSI and
-# DPI registers through /dev/mem, so they are root-only by nature.
-SYSELE_TOOLS_C = "vsg_trace vsg_period vsg_watchdog clr_keeper dpi_stopper"
-SYSELE_TOOLS_SH = "vsg.sh regdump.sh stream.sh setup.sh"
+# Two families, and the split is the point of the layout.
+#
+# Commands are what somebody picking up the board is meant to type: they end up
+# in the PATH and in the sysele-info listing.
+#
+# Instruments answer one question each about the display bring-up. They read and
+# write DSI and DPI registers through /dev/mem at full speed and can stop the
+# panel, so they stay in their own directory, out of the PATH, where they have to
+# be asked for by name.
+SYSELE_CMD_SH = "dsi_status dsi_stream dsi_config reg_dump"
+SYSELE_CMD_C = "dsi_trace"
+SYSELE_DIAG_C = "vsg_period vsg_watchdog clr_keeper dpi_stopper"
 
 S = "${WORKDIR}"
 
@@ -31,13 +40,14 @@ S = "${WORKDIR}"
 # the package is not identical across machines.
 
 SYSELE_DIR = "/opt/sysele"
+SYSELE_ROOT_HOME = "/home/root"
 
 # DATETIME changes on every build. Without this the task signature changes too,
 # the recipe rebuilds every time and it invalidates the sstate cache behind it.
 do_install[vardepsexclude] += "DATETIME"
 
 do_compile() {
-    for t in ${SYSELE_TOOLS_C}; do
+    for t in ${SYSELE_CMD_C} ${SYSELE_DIAG_C}; do
         ${CC} ${CFLAGS} ${LDFLAGS} -o ${B}/$t ${WORKDIR}/$t.c -lm
     done
 }
@@ -46,9 +56,13 @@ do_install() {
     # An empty directory is not packaged on its own; it has to be created here
     # and claimed in FILES below, otherwise the recipe builds and installs
     # nothing.
-    install -d ${D}${SYSELE_DIR}
     install -d ${D}${SYSELE_DIR}/bin
-    install -d ${D}${sysconfdir}/profile.d
+    install -d ${D}${SYSELE_DIR}/diag
+    install -d ${D}${SYSELE_DIR}/src
+
+    # Generated files land here: the pipeline JSONs are built on the board from
+    # Hailo's vision config by dsi_config, so they cannot ship with the package.
+    install -d ${D}${SYSELE_DIR}/share
 
     # DATETIME is YYYYMMDDhhmmss; make it readable. METADATA_REVISION is a full
     # SHA, 12 characters are enough to identify it.
@@ -67,23 +81,46 @@ do_install() {
 SYSELE_EOF
 
     install -m 0755 ${WORKDIR}/sysele-info ${D}${SYSELE_DIR}/bin/sysele-info
+    for t in ${SYSELE_CMD_SH}; do
+        install -m 0755 ${WORKDIR}/$t ${D}${SYSELE_DIR}/bin/$t
+    done
 
-    # Tools, plus the sources of the compiled ones: they are read on the board
-    # more often than they are rebuilt.
-    install -d ${D}${SYSELE_DIR}/src
-    for t in ${SYSELE_TOOLS_C}; do
+    # The sources of the compiled tools ship too: on this board they are read
+    # more often than they are rebuilt, and sysele-info takes the one line
+    # description of a compiled tool from the first line of its source.
+    for t in ${SYSELE_CMD_C}; do
         install -m 0755 ${B}/$t ${D}${SYSELE_DIR}/bin/$t
         install -m 0644 ${WORKDIR}/$t.c ${D}${SYSELE_DIR}/src/$t.c
     done
-    for t in ${SYSELE_TOOLS_SH}; do
-        install -m 0755 ${WORKDIR}/$t ${D}${SYSELE_DIR}/bin/$t
+    for t in ${SYSELE_DIAG_C}; do
+        install -m 0755 ${B}/$t ${D}${SYSELE_DIR}/diag/$t
+        install -m 0644 ${WORKDIR}/$t.c ${D}${SYSELE_DIR}/src/$t.c
     done
+
+    # Two ways in, on purpose. The profile.d snippet serves the login shells,
+    # the symlinks serve everything else: a non interactive ssh command, a
+    # systemd unit and a script never read profile.d, and typing the full path
+    # to /opt every time is how a tool stops being used.
+    install -d ${D}${sysconfdir}/profile.d
     install -m 0644 ${WORKDIR}/sysele-motd.sh ${D}${sysconfdir}/profile.d/sysele-motd.sh
+    install -m 0644 ${WORKDIR}/sysele-path.sh ${D}${sysconfdir}/profile.d/sysele-path.sh
+
+    install -d ${D}${bindir}
+    for t in sysele-info ${SYSELE_CMD_SH} ${SYSELE_CMD_C}; do
+        ln -sf ${SYSELE_DIR}/bin/$t ${D}${bindir}/$t
+    done
+
+    # Next to Hailo's apps/ in root's home: whoever opens the board sees that
+    # this is a System Electronics product before they see anything else.
+    install -d ${D}${SYSELE_ROOT_HOME}
+    ln -sf ${SYSELE_DIR} ${D}${SYSELE_ROOT_HOME}/sysele
 }
 
 FILES:${PN} += " \
     ${SYSELE_DIR} \
     ${sysconfdir}/profile.d/sysele-motd.sh \
+    ${sysconfdir}/profile.d/sysele-path.sh \
+    ${SYSELE_ROOT_HOME}/sysele \
 "
 
 # NOTE, open point for review: METADATA_REVISION is the revision of poky, not

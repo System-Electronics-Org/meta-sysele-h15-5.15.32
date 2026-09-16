@@ -1,9 +1,43 @@
 #!/bin/sh
-# Print the build banner on demand, same content shown at login.
+# Print the build banner and the tools this package ships, on demand.
+# The banner alone is what the login shell shows.
 
-if [ ! -r /opt/sysele/build-info ]; then
-    echo "sysele-info: /opt/sysele/build-info is missing" >&2
+SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
+
+if [ ! -r "$SYSELE_DIR/build-info" ]; then
+    echo "sysele-info: $SYSELE_DIR/build-info is missing" >&2
     exit 1
 fi
 
-cat /opt/sysele/build-info
+cat "$SYSELE_DIR/build-info"
+
+# The one line description lives in the file itself: line 2 of a shell tool,
+# under the shebang, and line 1 of the source of a compiled one.
+describe() {
+    case "$(head -c 2 "$1")" in
+        "#!") sed -n '2s|^# \{0,1\}||p' "$1" ;;
+        *)    sed -n '1s|^// \{0,1\}||p' "$SYSELE_DIR/src/$(basename "$1").c" 2>/dev/null ;;
+    esac
+}
+
+echo "  Comandi, nel PATH"
+for t in "$SYSELE_DIR"/bin/*; do
+    [ -x "$t" ] || continue
+    n=$(basename "$t")
+    [ "$n" = "sysele-info" ] && continue
+    printf "    %-14s %s\n" "$n" "$(describe "$t")"
+done
+
+if [ -d "$SYSELE_DIR/diag" ]; then
+    echo
+    echo "  Strumenti di misura, fuori dal PATH, in $SYSELE_DIR/diag"
+    printf "   "
+    for t in "$SYSELE_DIR"/diag/*; do
+        [ -x "$t" ] && printf " %s" "$(basename "$t")"
+    done
+    echo
+fi
+
+echo
+echo "  Sorgenti in $SYSELE_DIR/src, file generati in $SYSELE_DIR/share"
+echo

@@ -1,15 +1,21 @@
 #!/bin/sh
-# Uso: ./stream.sh [30|60] [secondi|inf]
-# Percorsi: JSON in $SYSELE_JSON_DIR (default /home/root), log in $STREAM_LOG.
+# Manda la camera sul pannello DSI.
+# Uso: dsi_stream [30|60] [secondi|inf]
+# I JSON stanno in $SYSELE_SHARE (default /opt/sysele/share), li crea dsi_config.
+# Il log del run sta in $STREAM_LOG (default /tmp/dsi_stream.log).
+usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
+case "$1" in
+-h|--help) usage; exit 0 ;;
+esac
 FPS=${1:-30}; DUR=${2:-10}
-DIR=${SYSELE_JSON_DIR:-/home/root}
-LOG=${STREAM_LOG:-/tmp/stream.log}
+DIR=${SYSELE_SHARE:-/opt/sysele/share}
+LOG=${STREAM_LOG:-/tmp/dsi_stream.log}
 case "$FPS" in
-  30) J=$DIR/t02_frontend_dsi.json ;;
-  60) J=$DIR/t02_frontend_dsi_60.json ;;
+  30) J=$DIR/frontend_dsi_30.json ;;
+  60) J=$DIR/frontend_dsi_60.json ;;
   *)  echo "primo argomento: 30 oppure 60"; exit 1 ;;
 esac
-[ -f "$J" ] || { echo "manca $J, lancia setup.sh"; exit 1; }
+[ -f "$J" ] || { echo "manca $J, lancia dsi_config"; exit 1; }
 echo "fps=$FPS durata=$DUR   (log in $LOG)"
 if [ "$DUR" = "inf" ]; then T=""; else T="timeout $DUR"; fi
 $T gst-launch-1.0 -v hailofrontendbinsrc config-file-path=$J name=fe \

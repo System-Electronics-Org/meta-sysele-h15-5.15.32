@@ -1,0 +1,25 @@
+#!/bin/sh
+# Crea i JSON della pipeline DSI partendo dalla vision config di Hailo.
+# Da rilanciare dopo un flash: i JSON sono generati, non fanno parte del pacchetto.
+# Uso: dsi_config
+# Sorgente in $SYSELE_VISION_CONFIG, destinazione in $SYSELE_SHARE.
+usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
+case "$1" in
+-h|--help) usage; exit 0 ;;
+esac
+S=${SYSELE_VISION_CONFIG:-/home/root/apps/webserver/resources/configs/vision_config1.json}
+OUT=${SYSELE_SHARE:-/opt/sysele/share}
+[ -f "$S" ] || { echo "manca $S"; exit 1; }
+mkdir -p "$OUT" || { echo "non riesco a scrivere in $OUT"; exit 1; }
+python3 - "$S" "$OUT" <<'PY'
+import json, sys
+c = json.load(open(sys.argv[1]))
+c["input_video"]["sensor_id"] = "SENSOR_1"
+c["application_input_streams"]["resolutions"] = [{"width": 1280, "height": 800, "framerate": 30,
+    "pool_max_buffers": 10, "scaling_mode": "LETTERBOX_MIDDLE"}]
+out = sys.argv[2]
+json.dump(c, open(out + "/frontend_dsi_30.json", "w"), indent=4)
+s = json.dumps(c, indent=4).replace('"framerate": 30', '"framerate": 60')
+open(out + "/frontend_dsi_60.json", "w").write(s)
+print("creati " + out + "/frontend_dsi_30.json e " + out + "/frontend_dsi_60.json")
+PY

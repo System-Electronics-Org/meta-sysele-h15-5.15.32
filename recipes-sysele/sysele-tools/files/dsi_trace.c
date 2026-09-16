@@ -1,5 +1,5 @@
 // Traccia le transizioni del generatore video DSI (cdns-dsi, 7c018000).
-// Uso: vsg_trace <secondi> [periodo_us, default 200]
+// Uso: dsi_trace <secondi> [periodo_us, default 200]
 // Tempi in CLOCK_MONOTONIC (s). NON allineati con il dmesg: misurato uno
 // scarto di almeno 77 ms, confrontare solo tempi della stessa traccia.
 // Campiona ogni periodo_us (default 200 us); per tracce lunghe basta 1000.

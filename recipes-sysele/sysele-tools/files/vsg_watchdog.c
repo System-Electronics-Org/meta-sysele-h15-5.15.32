@@ -1,5 +1,5 @@
-// Watchdog del generatore video DSI (cdns-dsi, 7c018000) in spazio utente:
-// prototipo del punto 3.3 del T09, per provarlo senza build.
+// Watchdog del generatore video DSI (cdns-dsi, 7c018000) in spazio utente.
+// Prototipo di quello che oggi sta nel driver, utile per provarlo senza build.
 // Uso: vsg_watchdog <secondi> [periodo_ms, default 1000] [pausa_ms, default 100]
 //
 // Ogni periodo legge VID_MODE_STS (0xf0). Se VID_EN e' acceso e sono accesi,
