@@ -122,3 +122,7 @@ SRC_URI:append = " file://0022-hailo-drm-frame-counter-off-by-one.patch"
 # cdns-dsi: at disable, wait for the video stream generator to stop before
 # returning, so the next enable does not inherit a half finished frame.
 SRC_URI:append = " file://0023-cdns-dsi-wait-for-vsg-to-stop-at-disable.patch"
+
+# cdns-dsi: watchdog that restarts the generator when it stops with errors.
+# The net, not the fix: its counters should stay at zero.
+SRC_URI:append = " file://0024-cdns-dsi-vsg-watchdog.patch"
