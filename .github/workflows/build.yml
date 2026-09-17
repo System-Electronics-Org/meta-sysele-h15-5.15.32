@@ -430,7 +430,7 @@ jobs:
 
       - name: Create Release with Compressed Archive
         if: inputs.publish
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v1.0.0.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
