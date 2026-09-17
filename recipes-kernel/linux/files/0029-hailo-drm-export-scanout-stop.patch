@@ -1,0 +1,105 @@
+From: System Electronics
+Date: Thu, 17 Sep 2026 11:10:00 +0200
+Subject: [PATCH] drm/hailo: let the DSI bridge stop the scanout
+
+The DSI controller that this DPI feeds must be shut down after its
+source has stopped, and today nothing can stop the source: the pipe has
+no disable hook and the scanout runs from the first modeset until the
+board is reset.
+
+Export the one operation the bridge needs. There is deliberately no
+matching start: hailo_pipe_enable already writes DPM_1 with the
+continuous scanout bit set and reissues GO_SCANOUT, so the source comes
+back by itself at the next enable, measured ten times out of ten. The
+only paths where a disable is not followed by an enable are the final
+teardowns, where a stopped scanout is what is wanted anyway.
+
+The export is temporary. It exists because the DRM core tears bridges
+down before CRTCs, so the ordering cannot be expressed through a pipe
+disable hook without reordering the core. Moving cdns-dsi onto
+pre_enable/post_disable upstream removes the need for it.
+
+Upstream-Status: Inappropriate [platform workaround]
+
+---
+--- /dev/null
++++ b/include/linux/hailo-drm.h
+@@ -0,0 +1,20 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Astrial H15: the DSI bridge needs to stop the DPI that feeds it before it
++ * shuts itself down.
++ */
++#ifndef __LINUX_HAILO_DRM_H
++#define __LINUX_HAILO_DRM_H
++
++#include <linux/errno.h>
++
++#if IS_REACHABLE(CONFIG_DRM_HAILO)
++int hailo_dpi_stop_scanout(void);
++#else
++static inline int hailo_dpi_stop_scanout(void)
++{
++	return -ENODEV;
++}
++#endif
++
++#endif /* __LINUX_HAILO_DRM_H */
+--- a/drivers/gpu/drm/hailo/hailo_drv.c
++++ b/drivers/gpu/drm/hailo/hailo_drv.c
+@@ -1,5 +1,6 @@
+ #include <linux/clk.h>
+ #include <linux/delay.h>
++#include <linux/hailo-drm.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_runtime.h>
+@@ -83,6 +84,31 @@
+ 
+ DEFINE_DRM_GEM_CMA_FOPS(fops);
+ 
++static struct hailo_driver_device *hailo_dpi_dev;
++
++/*
++ * The DSI controller has to be shut down after its source has stopped, so it
++ * needs a way to stop the scanout from outside this driver.
++ *
++ * There is no matching start on purpose: hailo_pipe_enable writes DPM_1 with
++ * CFG_IS_CONTINUOUS_SCANOUT_MODE set and reissues GO_SCANOUT, so the source
++ * comes back by itself at the next enable. Measured ten times out of ten.
++ */
++int hailo_dpi_stop_scanout(void)
++{
++	struct hailo_driver_device *priv = hailo_dpi_dev;
++	u32 val;
++
++	if (!priv)
++		return -ENODEV;
++
++	val = readl(priv->regs + DPM_1);
++	writel(val & ~CFG_IS_CONTINUOUS_SCANOUT_MODE, priv->regs + DPM_1);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(hailo_dpi_stop_scanout);
++
+ static const struct drm_driver driver_drm_driver = {
+ 	.driver_features = DRIVER_GEM | DRIVER_MODESET | DRIVER_ATOMIC,
+ 	.fops = &fops,
+@@ -302,6 +328,7 @@
+ 	drm_mode_config_reset(drm);
+ 
+ 	platform_set_drvdata(pdev, drm);
++	hailo_dpi_dev = priv;
+ 
+ 	ret = drm_dev_register(drm, 0);
+ 	if (ret) {
+@@ -324,6 +351,8 @@
+ static int driver_remove(struct platform_device *pdev)
+ {
+ 	struct drm_device *drm = platform_get_drvdata(pdev);
++
++	hailo_dpi_dev = NULL;
+ 	drm_dev_unregister(drm);
+ 	drm_atomic_helper_shutdown(drm);
+ 	pm_runtime_put_sync(&pdev->dev);

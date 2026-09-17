@@ -137,3 +137,10 @@ SRC_URI:append = " file://0026-cdns-dsi-negative-syncs-and-bus-flags.patch"
 # Working defaults for the two enable delays: 300 ms once at first scanout,
 # 20 ms before VID_EN on every enable.
 SRC_URI:append = " file://0027-dsi-enable-delay-defaults.patch"
+
+# hailo-drm: export the scanout stop, so the DSI bridge can stop its source.
+SRC_URI:append = " file://0029-hailo-drm-export-scanout-stop.patch"
+
+# cdns-dsi: stop the source and let it settle before shutting the controller
+# down. This is the fix for the dark panel after a pipeline exit.
+SRC_URI:append = " file://0030-cdns-dsi-stop-the-source-before-disabling.patch"
