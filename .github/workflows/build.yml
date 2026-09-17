@@ -394,29 +394,16 @@ jobs:
           if-no-files-found: warn
 
       # I due upload stampano centinaia di righe e il link finisce in fondo.
-      # Qui compare da solo: come step a se' nel log, e soprattutto nel
-      # riepilogo del run, che e' la prima pagina che si apre e non richiede
-      # di espandere niente.
+      # Qui compare da solo, in uno step a se' da aprire nel log. Nella pagina
+      # del run i due artefatti ci sono gia', nella sezione Artifacts.
       - name: Download Links
         if: always()
         env:
           BUILD_URL: ${{ steps.upload_build.outputs.artifact-url }}
           LOGS_URL: ${{ steps.upload_logs.outputs.artifact-url }}
         run: |
-          {
-            echo "## Downloads"
-            echo
-            if [ -n "$BUILD_URL" ]; then
-              echo "- **Image and flashing files:** [astrial-h15-yocto-build]($BUILD_URL)"
-            else
-              echo "- Image and flashing files: not produced, the build did not get that far"
-            fi
-            if [ -n "$LOGS_URL" ]; then
-              echo "- Build logs: [astrial-h15-build-logs]($LOGS_URL)"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "Image: ${BUILD_URL:-not produced}"
-          echo "Logs:  ${LOGS_URL:-not produced}"
+          echo "Image and flashing files: ${BUILD_URL:-not produced, the build did not get that far}"
+          echo "Build logs:               ${LOGS_URL:-not produced}"
 
       - name: Download Build Artifacts for Release
         if: inputs.publish
