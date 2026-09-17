@@ -360,6 +360,7 @@ jobs:
           echo "All required release artifacts are present."
 
       - name: Archive Build Artifacts
+        id: upload_build
         uses: actions/upload-artifact@v4
         with:
           name: astrial-h15-yocto-build
@@ -381,6 +382,7 @@ jobs:
           if-no-files-found: error
 
       - name: Archive Build Logs
+        id: upload_logs
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -390,6 +392,31 @@ jobs:
             meta-hailo-soc/build/buildhistory/
             failure-logs/
           if-no-files-found: warn
+
+      # I due upload stampano centinaia di righe e il link finisce in fondo.
+      # Qui compare da solo: come step a se' nel log, e soprattutto nel
+      # riepilogo del run, che e' la prima pagina che si apre e non richiede
+      # di espandere niente.
+      - name: Download Links
+        if: always()
+        env:
+          BUILD_URL: ${{ steps.upload_build.outputs.artifact-url }}
+          LOGS_URL: ${{ steps.upload_logs.outputs.artifact-url }}
+        run: |
+          {
+            echo "## Downloads"
+            echo
+            if [ -n "$BUILD_URL" ]; then
+              echo "- **Image and flashing files:** [astrial-h15-yocto-build]($BUILD_URL)"
+            else
+              echo "- Image and flashing files: not produced, the build did not get that far"
+            fi
+            if [ -n "$LOGS_URL" ]; then
+              echo "- Build logs: [astrial-h15-build-logs]($LOGS_URL)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: ${BUILD_URL:-not produced}"
+          echo "Logs:  ${LOGS_URL:-not produced}"
 
       - name: Download Build Artifacts for Release
         if: inputs.publish
