@@ -41,3 +41,8 @@ SRC_URI:append = " file://0005-wm8960-auto-sysclk.patch \
 
 # i2c-gpio, needed only by the bitbanged audio bus. Goes away with it.
 SRC_URI:append = " file://i2c-gpio.cfg"
+
+# ISP: with one sensor the front-end stays disabled, and a sensor on CSI-RX1
+# presents vdid 1, which the driver refuses in that mode. Experimental, the
+# reasoning is in the patch header.
+SRC_URI:append = " file://0006-isp-allow-vdid-nonzero-without-fe.patch"

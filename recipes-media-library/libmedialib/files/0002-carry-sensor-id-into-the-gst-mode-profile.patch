@@ -1,0 +1,45 @@
+From: System Electronics
+Date: Tue, 9 Sep 2026 18:30:00 +0200
+Subject: [PATCH] medialib: carry sensor_id into the GStreamer-mode profile
+
+In GStreamer mode there is no medialib profile file: ConfigManagerInteractor
+::create_dummy_profile_interactor() synthesises one from the frontend config
+through config_profile_t::from_frontend_config().
+
+That conversion copies resolution, format, zoom, rotation, flip, hailort,
+analytics, stabilizer and IQ settings, but never copies the sensor index. The
+frontend schema does accept "sensor_id" under "input_video", the parser stores
+it in frontend_config.input_config.sensor_index, and several call sites use it
+(get_sensor_mode_info_sdr/hdr, get_raw_capture_path, get_pixel_format). But
+IspManager::init_isp_out_device() reads it back from the profile:
+
+    size_t sensor_index = current_profile_opt.value()->sensor_config.input_video.sensor_id;
+
+which stays at its SENSOR_0 default. On Astrial H15 the only camera sits on
+CSI-RX1, so SensorRegistry then looks for a sensor behind cdns_csi2rx_0, finds
+none, and the pipeline dies with "No enabled remote source connected to
+cdns_csi2rx_0" followed by "Failed to set IMX_WDR".
+
+The reverse conversion, to_frontend_config(), already carries the field:
+
+    .sensor_index = static_cast<size_t>(sensor_config.input_video.sensor_id)
+
+so this only restores the missing symmetry.
+
+Note: source and source_type show the same asymmetry and are also dropped by
+from_frontend_config(). Left alone here, nothing needs them yet.
+
+Upstream-Status: Pending
+
+---
+--- a/hailo-media-library/media_library/include/media_library/media_library_types.hpp
++++ b/hailo-media-library/media_library/include/media_library/media_library_types.hpp
+@@ -2003,6 +2003,8 @@
+     void from_frontend_config(const frontend_config_t &frontend_config)
+     {
+         // Convert sensor config
++        sensor_config.input_video.sensor_id =
++            static_cast<sensor_id_t>(frontend_config.input_config.sensor_index);
+         sensor_config.input_video.resolution.width =
+             frontend_config.input_config.resolution.dimensions.destination_width;
+         sensor_config.input_video.resolution.height =
