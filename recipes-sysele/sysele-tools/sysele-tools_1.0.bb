@@ -60,19 +60,23 @@ do_install() {
     # and claimed in FILES below, otherwise the recipe builds and installs
     # nothing.
     install -d ${D}${SYSELE_DIR}/bin
-    install -d ${D}${SYSELE_DIR}/diag
+    install -d ${D}${SYSELE_DIR}/diagnostics
     install -d ${D}${SYSELE_DIR}/src
 
-    # Generated files land here: the pipeline JSONs are built on the board from
-    # Hailo's vision config by dsi_config, so they cannot ship with the package.
+    # Three kinds of data, told apart by who writes them: share is what the
+    # build produces and nobody edits, etc is what somebody edits, var is what
+    # the board writes at runtime, like the pipeline JSONs that dsi_config
+    # builds from Hailo's vision config.
     install -d ${D}${SYSELE_DIR}/share
+    install -d ${D}${SYSELE_DIR}/etc
+    install -d ${D}${SYSELE_DIR}/var
 
     # DATETIME is YYYYMMDDhhmmss; make it readable. METADATA_REVISION is a full
     # SHA, 12 characters are enough to identify it.
     built=$(echo "${DATETIME}" | sed -E 's/(....)(..)(..)(..)(..)(..)/\1-\2-\3 \4:\5:\6/')
     poky_rev=$(echo "${METADATA_REVISION}" | cut -c1-12)
 
-    cat > ${D}${SYSELE_DIR}/build-info <<SYSELE_EOF
+    cat > ${D}${SYSELE_DIR}/share/build-info <<SYSELE_EOF
 
   Astrial H15 - System Electronics
 
@@ -85,9 +89,8 @@ SYSELE_EOF
 
     install -m 0755 ${WORKDIR}/sysele-info ${D}${SYSELE_DIR}/bin/sysele-info
 
-    # Le manopole della demo stanno accanto ai comandi, non fra i file generati:
-    # in fiera si aprono e si modificano.
-    install -m 0644 ${WORKDIR}/camera_ae.conf ${D}${SYSELE_DIR}/camera_ae.conf
+    # Le manopole della demo stanno in etc, dove sta tutto cio' che si modifica.
+    install -m 0644 ${WORKDIR}/camera_ae.conf ${D}${SYSELE_DIR}/etc/camera_ae.conf
 
     # What sysele-config is allowed to select, derived from the same variable
     # that puts the trees in the FIT: a hand written list would drift from the
@@ -126,7 +129,7 @@ SYSELE_EOF
         install -m 0644 ${WORKDIR}/$t.c ${D}${SYSELE_DIR}/src/$t.c
     done
     for t in ${SYSELE_DIAG_C}; do
-        install -m 0755 ${B}/$t ${D}${SYSELE_DIR}/diag/$t
+        install -m 0755 ${B}/$t ${D}${SYSELE_DIR}/diagnostics/$t
         install -m 0644 ${WORKDIR}/$t.c ${D}${SYSELE_DIR}/src/$t.c
     done
 
@@ -147,7 +150,6 @@ SYSELE_EOF
     # this is a System Electronics product before they see anything else.
     install -d ${D}${SYSELE_ROOT_HOME}
     ln -sf ${SYSELE_DIR} ${D}${SYSELE_ROOT_HOME}/sysele
-    ln -sf ${SYSELE_DIR}/bin/demo ${D}${SYSELE_ROOT_HOME}/demo
 }
 
 FILES:${PN} += " \
@@ -155,7 +157,6 @@ FILES:${PN} += " \
     ${sysconfdir}/profile.d/sysele-motd.sh \
     ${sysconfdir}/profile.d/sysele-path.sh \
     ${SYSELE_ROOT_HOME}/sysele \
-    ${SYSELE_ROOT_HOME}/demo \
 "
 
 # NOTE, open point for review: METADATA_REVISION is the revision of poky, not

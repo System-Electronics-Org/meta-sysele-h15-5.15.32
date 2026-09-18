@@ -1,14 +1,14 @@
 #!/bin/sh
 # Manda la camera sul pannello DSI.
 # Uso: dsi_stream [30|60] [secondi|inf]
-# I JSON stanno in $SYSELE_SHARE (default /opt/sysele/share), li crea dsi_config.
+# I JSON stanno in $SYSELE_VAR (default /opt/sysele/var), li crea dsi_config.
 # Il log del run sta in $STREAM_LOG (default /tmp/dsi_stream.log).
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 case "$1" in
 -h|--help) usage; exit 0 ;;
 esac
 FPS=${1:-30}; DUR=${2:-10}
-DIR=${SYSELE_SHARE:-/opt/sysele/share}
+DIR=${SYSELE_VAR:-/opt/sysele/var}
 LOG=${STREAM_LOG:-/tmp/dsi_stream.log}
 case "$FPS" in
   30) J=$DIR/frontend_dsi_30.json ;;

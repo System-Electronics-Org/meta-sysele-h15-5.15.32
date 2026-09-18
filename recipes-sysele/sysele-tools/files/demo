@@ -1,13 +1,13 @@
 #!/bin/sh
 # Avvia la demo sul pannello DSI: camera, auto-esposizione, video a schermo.
 # Uso: demo [secondi]        senza argomenti gira finche' non lo fermi
-# Le manopole stanno in camera_ae.conf, accanto a questo comando.
+# Le manopole stanno in etc/camera_ae.conf, dentro /opt/sysele.
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 case "$1" in -h|--help|help) usage; exit 0 ;; esac
 
 SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
-CONF=${CAMERA_AE_CONF:-$SYSELE_DIR/camera_ae.conf}
-JSON=${SYSELE_JSON:-$SYSELE_DIR/share/frontend_dsi_30.json}
+CONF=${CAMERA_AE_CONF:-$SYSELE_DIR/etc/camera_ae.conf}
+JSON=${SYSELE_JSON:-$SYSELE_DIR/var/frontend_dsi_30.json}
 AAA=${SYSELE_3ACONFIG:-/usr/bin/3aconfig.json}
 DUR=$1
 
