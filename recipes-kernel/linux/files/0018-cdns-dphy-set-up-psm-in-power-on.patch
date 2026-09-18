@@ -1,0 +1,62 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 11:10:00 +0200
+Subject: [PATCH] phy: cdns-dphy: set up the PSM divider in power_on
+
+cdns_dphy_setup_psm() programs the divider of the power state machine
+clock. Our driver called it from cdns_dphy_configure(); mainline calls it
+from cdns_dphy_power_on(), after enabling the clocks, and set_psm_div is
+part of the generic reference ops, so this is not J721E specific.
+
+Move it. power_on becomes self-sufficient for the state machine it
+starts, which fits the is_configured / is_powered guard model, and the
+divider is programmed while psm_clk is enabled, the clock that power_off
+now gates. If setup fails, the three clocks just enabled are released.
+
+Of all the changes in this series this is the one that alters the order
+in which PHY registers are programmed: the PSM divider is now written
+after the clock lane, PLL and band configuration instead of before them,
+though still before the state machine is started. If behaviour gets
+worse after this series, this is the first patch to take out.
+
+---
+--- a/drivers/phy/cadence/cdns-dphy.c
++++ b/drivers/phy/cadence/cdns-dphy.c
+@@ -287,14 +287,6 @@
+ 		return ret;
+ 
+ 	/*
+-	 * Configure the internal PSM clk divider so that the DPHY has a
+-	 * 1MHz clk (or something close).
+-	 */
+-	ret = cdns_dphy_setup_psm(dphy);
+-	if (ret)
+-		return ret;
+-
+-	/*
+ 	 * Configure attach clk lanes to data lanes: the DPHY has 2 clk lanes
+ 	 * and 8 data lanes, each clk lane can be attache different set of
+ 	 * data lanes. The 2 groups are named 'left' and 'right', so here we
+@@ -325,6 +317,7 @@
+ {
+ 	struct cdns_dphy *dphy = phy_get_drvdata(phy);
+ 	u32 reg;
++	int ret;
+ 
+ 	if (!dphy->is_configured || dphy->is_powered)
+ 		return -EINVAL;
+@@ -333,6 +326,15 @@
+ 	clk_prepare_enable(dphy->pll_ref_clk);
+ 	clk_prepare_enable(dphy->esc_clk);
+ 
++	/* PSM clock divider for a ~1 MHz state machine clock. */
++	ret = cdns_dphy_setup_psm(dphy);
++	if (ret) {
++		clk_disable_unprepare(dphy->esc_clk);
++		clk_disable_unprepare(dphy->pll_ref_clk);
++		clk_disable_unprepare(dphy->psm_clk);
++		return ret;
++	}
++
+ 	/* Start TX state machine. */
+ 	reg = readl(dphy->regs + DPHY_CMN_SSM);
+ 	writel((reg & DPHY_CMN_SSM_CAL_WAIT_TIME) | DPHY_CMN_SSM_EN | DPHY_CMN_TX_MODE_EN,

@@ -1,0 +1,63 @@
+From: System Electronics
+Date: Wed, 16 Sep 2026 11:30:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: force stop state while the PHY comes up
+
+The lanes follow whatever the PHY drives while it is powered up and taken
+out of reset, so the link can start from an undefined state.
+
+Backport of Tomi Valkeinen's "drm/bridge: cdns-dsi: Fix stop-state at
+enable time", adapted to this driver: the force bits are raised before the
+DPHY configuration and dropped 100 us after the reset lines are released.
+
+It is off by default. On this board it is the last change still unaccounted
+for in a link failure that leaves the generator reporting a missing HSYNC
+until the next reboot, so it goes in behind cdns_dsi.force_stop_state and
+is turned on to measure it, not to run with it.
+
+Upstream-Status: Backport
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -858,15 +858,26 @@
+ 	pm_runtime_put(dsi->base.dev);
+ }
+ 
++static bool force_stop_state;
++module_param(force_stop_state, bool, 0444);
++MODULE_PARM_DESC(force_stop_state, "Hold the lanes in stop state while the D-PHY comes up");
++
+ static void cdns_dsi_hs_init(struct cdns_dsi *dsi)
+ {
+ 	struct cdns_dsi_output *output = &dsi->output;
+-	u32 status, stale;
++	u32 status, stale, main_en = 0;
+ 	int i, ret;
+ 	
+ 	if (dsi->phy_initialized)
+ 		return;
+ 
++	/* Force the stop state on all lanes while the PHY comes up. */
++	if (force_stop_state) {
++		main_en = readl(dsi->regs + MCTL_MAIN_EN);
++		writel(main_en | DATA_FORCE_STOP | CLK_FORCE_STOP,
++		       dsi->regs + MCTL_MAIN_EN);
++	}
++
+ 	/*
+ 	 * Power all internal DPHY blocks down and maintain their reset line
+ 	 * asserted before changing the DPHY config.
+@@ -896,6 +907,13 @@
+ 	       DPHY_D_RSTB(output->dev->lanes) | DPHY_C_RSTB,
+ 	       dsi->regs + MCTL_DPHY_CFG0);
+ 
++	/* Keep the stop state for at least 100 us, then release it. */
++	if (force_stop_state) {
++		usleep_range(100, 200);
++		writel(main_en & ~(DATA_FORCE_STOP | CLK_FORCE_STOP),
++		       dsi->regs + MCTL_MAIN_EN);
++	}
++
+ 	dsi->phy_initialized = true;
+ }
+ 

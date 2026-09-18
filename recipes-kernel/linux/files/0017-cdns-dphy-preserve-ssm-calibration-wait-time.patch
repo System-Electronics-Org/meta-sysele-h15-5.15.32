@@ -1,0 +1,52 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 11:00:00 +0200
+Subject: [PATCH] phy: cdns-dphy: preserve the calibration wait time when starting the state machine
+
+cdns_dphy_power_on() started the TX state machine by writing
+DPHY_CMN_SSM_EN | DPHY_CMN_TX_MODE_EN over the whole DPHY_CMN_SSM
+register, which zeroes the calibration wait time field in bits 8..1.
+Measured on Astrial H15: DPHY_CMN_SSM reads 0x00000201 after power_on,
+bits 8..1 at zero.
+
+Mainline reads the register and keeps DPHY_CMN_SSM_CAL_WAIT_TIME,
+GENMASK(8, 1), when setting the two enable bits. Do the same.
+
+Preserving a field instead of overwriting it cannot make things worse:
+if its reset value is zero nothing changes, if it is not, we stop
+destroying it. It sits in the PHY start-up path, where the unexplained
+262 ms lane wait on the first modeset after boot also sits.
+
+Mainline also waits for PLL lock and O_CMN_READY right after this write.
+Those waits are not backported: in mainline they are callbacks that exist
+only in j721e_dphy_ops, use registers of the TI J721E wrapper, and are
+no-ops for the reference ops this integration uses.
+
+---
+--- a/drivers/phy/cadence/cdns-dphy.c
++++ b/drivers/phy/cadence/cdns-dphy.c
+@@ -28,6 +28,7 @@
+ 
+ #define DPHY_CMN_SSM			DPHY_PMA_CMN(0x20)
+ #define DPHY_CMN_SSM_EN			BIT(0)
++#define DPHY_CMN_SSM_CAL_WAIT_TIME	GENMASK(8, 1)
+ #define DPHY_CMN_TX_MODE_EN		BIT(9)
+ 
+ #define DPHY_CMN_PWM			DPHY_PMA_CMN(0x40)
+@@ -323,6 +324,7 @@
+ static int cdns_dphy_power_on(struct phy *phy)
+ {
+ 	struct cdns_dphy *dphy = phy_get_drvdata(phy);
++	u32 reg;
+ 
+ 	if (!dphy->is_configured || dphy->is_powered)
+ 		return -EINVAL;
+@@ -332,7 +334,8 @@
+ 	clk_prepare_enable(dphy->esc_clk);
+ 
+ 	/* Start TX state machine. */
+-	writel(DPHY_CMN_SSM_EN | DPHY_CMN_TX_MODE_EN,
++	reg = readl(dphy->regs + DPHY_CMN_SSM);
++	writel((reg & DPHY_CMN_SSM_CAL_WAIT_TIME) | DPHY_CMN_SSM_EN | DPHY_CMN_TX_MODE_EN,
+ 	       dphy->regs + DPHY_CMN_SSM);
+ 
+ 	dphy->is_powered = true;

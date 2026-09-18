@@ -1,0 +1,89 @@
+From: System Electronics
+Date: Thu, 10 Sep 2026 12:10:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: fix phy de-init and flag it so
+
+Backport of the upstream patch by Aradhya Bhatia (TI), part of the series
+"drm/bridge: cdns-dsi: Fix the color-shift issue", v11 02/14, March 2025.
+Fixes: fced5a364dee ("drm/bridge: cdns: Convert to phy framework").
+Reviewed-by and Tested-by: Dmitry Baryshkov, Tomi Valkeinen.
+
+Upstream text:
+
+  The driver code doesn't have a Phy de-initialization path as yet, and so
+  it does not clear the phy_initialized flag while suspending. This is a
+  problem because after resume the driver looks at this flag to determine
+  if a Phy re-initialization is required or not. It is in fact required
+  because the hardware is resuming from a suspend, but the driver does not
+  carry out any re-initialization causing the D-Phy to not work at all.
+
+Three adaptations to our 5.15 tree:
+
+  1. The file is drivers/gpu/drm/bridge/cdns-dsi.c, not
+     drivers/gpu/drm/bridge/cadence/cdns-dsi-core.c. The split into a
+     subdirectory is later than our kernel.
+  2. The callback is cdns_dsi_bridge_post_disable(), without the atomic_
+     prefix.
+  3. Our driver uses the phy framework: dsi->dphy comes from
+     devm_phy_get(dev, "dphy") and cdns_dsi_hs_init() calls phy_init(),
+     phy_set_mode(), phy_configure() and phy_power_on(), while
+     phy_power_off() and phy_exit() appeared nowhere in the file.
+
+What this does on this hardware, stated precisely. The D-PHY driver,
+drivers/phy/cadence/cdns-dphy.c, implements neither .init nor .exit, so
+the phy_init() and phy_exit() calls do nothing on the hardware; phy_exit()
+is kept to stay symmetric with upstream and with the phy core counters.
+The parts that act are three: clearing link_initialized and
+phy_initialized, so the next pre_enable runs cdns_dsi_init_link() and
+cdns_dsi_hs_init() again; phy_power_off(), which gates the D-PHY clocks
+and, since 0012, also stops its TX state machine; and the synchronous
+suspend below, which gates the DSI clocks and asserts its reset.
+
+Our cdns_dsi_suspend() cleared both flags, where upstream cleared one.
+Both are removed from there. phy_power_on() is reference counted by the
+phy core: clearing the flags without the matching phy_power_off() would
+leave power_count permanently high, and ops->power_off would never run
+again. Flags and PHY calls now live together in post_disable().
+
+Known hole, deliberately left: a system suspend with the display still on,
+one that does not go through post_disable(), would resume with stale
+flags. That does not happen on this board.
+
+One local addition on top of the upstream patch: pm_runtime_put() becomes
+pm_runtime_put_sync_suspend(). The clocks and the reset line are touched
+only by cdns_dsi_suspend(). Without a synchronous suspend the caller
+cannot know the block was really cycled, and the userspace workaround this
+replaces had to sleep and poll runtime_status to find out. put_sync alone
+would not do: it runs the idle callback and does not guarantee reaching
+suspend. Same reasoning and same call as upstream commits
+"drm/bridge: anx7625: Ensure bridge is suspended in disable()" and
+"drm/bridge: parade-ps8640: Ensure bridge is suspended in .post_disable()".
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -964,7 +964,14 @@
+ 	struct cdns_dsi_input *input = bridge_to_cdns_dsi_input(bridge);
+ 	struct cdns_dsi *dsi = input_to_dsi(input);
+ 
+-	pm_runtime_put(dsi->base.dev);
++	/* Make the next pre_enable redo link and PHY bring-up. */
++	dsi->phy_initialized = false;
++	dsi->link_initialized = false;
++	phy_power_off(dsi->dphy);
++	phy_exit(dsi->dphy);
++
++	/* Suspend now, so clocks are off and reset asserted before returning. */
++	pm_runtime_put_sync_suspend(dsi->base.dev);
+ }
+ 
+ static const struct drm_bridge_funcs cdns_dsi_bridge_funcs = {
+@@ -1217,8 +1224,7 @@
+ 	clk_disable_unprepare(dsi->dsi_sys_clk);
+ 	clk_disable_unprepare(dsi->dsi_p_clk);
+ 	reset_control_assert(dsi->dsi_p_rst);
+-	dsi->link_initialized = false;
+-	dsi->phy_initialized = false;
++	/* Flags are cleared in post_disable, paired with the PHY calls. */
+ 	return 0;
+ }
+ 

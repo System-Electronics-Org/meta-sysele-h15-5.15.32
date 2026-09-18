@@ -1,0 +1,39 @@
+From: System Electronics
+Date: Thu, 10 Sep 2026 12:30:00 +0200
+Subject: [PATCH] drm/panel: waveshare-dsi: log which panel the device tree selected
+
+The MCU exposes no ID or version register, and no public register map
+exists for it. The driver therefore cannot detect which panel is
+physically attached, and put in front of the wrong one it "succeeds" and
+drives it at the wrong resolution, producing a broken image with no error
+anywhere in the log.
+
+With more than one device tree shipping this driver, that is the trap
+waiting for whoever selects the wrong one. Failing cleanly is not
+possible, so state at probe what the device tree asked for.
+
+---
+--- a/drivers/gpu/drm/panel/panel-waveshare-dsi.c
++++ b/drivers/gpu/drm/panel/panel-waveshare-dsi.c
+@@ -443,6 +443,7 @@
+ 		.node = NULL,
+ 	};
+ 	const struct ws_panel_data *_ws_panel_data;
++	const char *compat = NULL;
+ 	int ret;
+ 
+ 	ts = devm_kzalloc(dev, sizeof(*ts), GFP_KERNEL);
+@@ -461,6 +462,13 @@
+ 
+ 	ts->i2c = i2c;
+ 
++	/* The MCU has no ID register: log what the device tree selected. */
++	of_property_read_string(dev->of_node, "compatible", &compat);
++	dev_info(dev, "Waveshare panel '%s' at %pOF: %ux%u@%u, %d lane(s)\n",
++		 compat ? compat : "unknown", dev->of_node,
++		 ts->mode->hdisplay, ts->mode->vdisplay,
++		 drm_mode_vrefresh(ts->mode), _ws_panel_data->lanes);
++
+ 	ws_panel_i2c_write(ts, 0xc0, 0x01);
+ 	ws_panel_i2c_write(ts, 0xc2, 0x01);
+ 	ws_panel_i2c_write(ts, 0xac, 0x01);

@@ -1,0 +1,50 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 17:10:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: diagnostic delay before enabling video
+
+Diagnostic only, inert by default. The kernel parameter
+cdns_dsi.video_delay_ms=N sleeps N ms in cdns_dsi_bridge_enable(), after
+the wait for the clock and data lanes and before VID_EN and the panel
+enable: the spot where the build before 0017 spent its 262 ms.
+
+Unlike cdns_dphy.cal_wait_time=0, this adds time only and keeps the short
+PHY calibration. The two parameters together separate "the display chain
+needs time at boot" from "the PHY needs the long calibration".
+
+No log line on purpose, same reason as 0019. The value in use is in
+/sys/module/cdns_dsi/parameters/video_delay_ms.
+
+Upstream-Status: Inappropriate [diagnostic, to be removed]
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -14,6 +14,7 @@
+ #include <video/mipi_display.h>
+ 
+ #include <linux/clk.h>
++#include <linux/delay.h>
+ #include <linux/interrupt.h>
+ #include <linux/iopoll.h>
+ #include <linux/ktime.h>
+@@ -788,6 +789,10 @@
+ 	dsi->link_initialized = true;
+ }
+ 
++static unsigned int video_delay_ms;
++module_param(video_delay_ms, uint, 0444);
++MODULE_PARM_DESC(video_delay_ms, "Diagnostic: delay in ms before enabling video, after the lanes are ready");
++
+ static void cdns_dsi_bridge_enable(struct drm_bridge *bridge)
+ {
+ 	struct cdns_dsi_input *input = bridge_to_cdns_dsi_input(bridge);
+@@ -834,6 +839,9 @@
+ 			 "DSI-DPhy Clock and Data Lanes ready after %lld us\n",
+ 			 phy_wait_us);
+ 
++	if (video_delay_ms)
++		msleep(video_delay_ms);
++
+ 	writel(HBP_LEN(dsi_cfg.hbp) | HSA_LEN(dsi_cfg.hsa),
+ 	       dsi->regs + VID_HSIZE1);
+ 	writel(HFP_LEN(dsi_cfg.hfp) | HACT_LEN(dsi_cfg.hact),

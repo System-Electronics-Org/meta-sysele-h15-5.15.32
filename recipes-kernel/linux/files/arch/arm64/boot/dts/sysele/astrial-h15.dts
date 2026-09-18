@@ -489,7 +489,15 @@
         pinctrl-0 = <&pinctrl_gpio21>;
     };
 
-    lcd@45 {
+    /*
+     * DSI panel, Raspberry Pi 7" 800x480 by default.
+     *
+     * The label is what lets astrial-h15-ws101.dts and panel-ws101.dtbo
+     * reach this node, so do not drop it. Both Waveshare and Raspberry
+     * panels answer at 0x45, which is why there is one node and not two:
+     * two I2C clients cannot share an address on the same bus.
+     */
+    panel_lcd: lcd@45 {
         status = "ok";
         compatible = "raspberrypi,7inch-touchscreen-panel";
         reg = <0x45>;

@@ -1,0 +1,109 @@
+From: System Electronics
+Date: Thu, 17 Sep 2026 11:20:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: stop the source before disabling
+
+The controller is shut down while the DPI in front of it is still
+scanning. That window corrupts the input FIFO, and on the next enable
+the video stream generator comes up and immediately reports a missing
+HSYNC: the panel stays dark and nothing short of a reboot clears it.
+The J721E TRM start-up procedure, 12.6.5.7.3, states the requirement in
+both directions, and only the enable half was being met.
+
+Measured on this board, same build and same parameters: 12 pipeline
+exits in the current order, all of them dark and each needing a reboot;
+10 exits with the source stopped 50 ms first, all clean, no reboot.
+
+The DPI exposes no status bit saying it has stopped, so the wait is
+blind. It takes up to 13 ms to stop, 50 ms is the value that was
+measured good, and the extra black is accepted. source_stop_wait_ms set
+to 0 makes this inert.
+
+The watchdog has to be disarmed across the whole shutdown, not just
+scheduled off: the generator is starved on purpose during the wait, and
+a watchdog that notices would turn VID_EN back on in the middle of the
+sequence. It already stops at the top of disable; the confirmation step
+now rechecks before restarting, because confirming takes longer than a
+frame and a disable can begin inside it.
+
+Upstream-Status: Inappropriate [platform workaround]
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -15,6 +15,7 @@
+ #include <video/mipi_display.h>
+ 
+ #include <linux/clk.h>
++#include <linux/hailo-drm.h>
+ #include <linux/delay.h>
+ #include <linux/interrupt.h>
+ #include <linux/iopoll.h>
+@@ -746,6 +747,10 @@
+ module_param(vsg_watchdog_gave_up, uint, 0444);
+ MODULE_PARM_DESC(vsg_watchdog_gave_up, "Times the watchdog stopped retrying until the next enable");
+ 
++static unsigned int vsg_watchdog_during_disable;
++module_param(vsg_watchdog_during_disable, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_during_disable, "Restarts dropped because a disable was already running");
++
+ /*
+  * A healthy generator drops VSG_RUNNING for about 0.3 ms once per frame, so
+  * one reading is never enough: confirm over more than a frame.
+@@ -793,6 +798,11 @@
+ 		return;
+ 
+ 	if (cdns_dsi_vsg_broken(dsi)) {
++		if (!dsi->vsg_enabled) {
++			vsg_watchdog_during_disable++;
++			return;
++		}
++
+ 		cdns_dsi_vsg_restart(dsi, fast ? vsg_watchdog_fast_ms :
+ 						 vsg_watchdog_pause_ms);
+ 		if (fast)
+@@ -804,6 +814,16 @@
+ 		 * The first restart after the DPI was reprogrammed often fails
+ 		 * again after about 18 ms: look once more before counting it.
+ 		 */
++		/*
++		 * Confirming takes more than a frame, and a disable can start in
++		 * the middle of it: the generator is starved on purpose there, so
++		 * restarting it would fight the shutdown.
++		 */
++		if (!dsi->vsg_enabled) {
++			vsg_watchdog_during_disable++;
++			return;
++		}
++
+ 		if (!cdns_dsi_vsg_broken(dsi)) {
+ 			dsi->vsg_fail_streak = 0;
+ 			vsg_watchdog_retry_streak = 0;
+@@ -846,6 +866,10 @@
+ 	cancel_delayed_work_sync(&dsi->vsg_work);
+ }
+ 
++static unsigned int source_stop_wait_ms = 50;
++module_param(source_stop_wait_ms, uint, 0444);
++MODULE_PARM_DESC(source_stop_wait_ms, "Ms to let the DPI stop before shutting the controller down, 0 disables");
++
+ static unsigned int disable_wait_ms = 50;
+ module_param(disable_wait_ms, uint, 0444);
+ MODULE_PARM_DESC(disable_wait_ms, "Max ms to wait at disable for the video stream generator to stop");
+@@ -863,6 +887,17 @@
+ 
+ 	cdns_dsi_vsg_watchdog_stop(dsi);
+ 
++	/*
++	 * The controller has to be shut down after its source has stopped. With
++	 * the source still scanning, the input FIFO is corrupted on the way down
++	 * and the generator comes back reporting a missing HSYNC, which nothing
++	 * short of a reboot clears. Stop the DPI first, then wait: it exposes no
++	 * status bit to poll, so the wait is blind, and 50 ms is the value that
++	 * was measured good.
++	 */
++	if (source_stop_wait_ms && !hailo_dpi_stop_scanout())
++		msleep(source_stop_wait_ms);
++
+ 	val = readl(dsi->regs + MCTL_MAIN_DATA_CTL);
+ 	val &= ~(IF_VID_SELECT_MASK | IF_VID_MODE | VID_EN | HOST_EOT_GEN |
+ 		 DISP_EOT_GEN);

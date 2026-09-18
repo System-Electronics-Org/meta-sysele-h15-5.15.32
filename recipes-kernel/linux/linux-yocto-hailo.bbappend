@@ -5,6 +5,8 @@ LINUX_YOCTO_HAILO_BOARD_VENDOR = "sysele"
 # Add device tree files - just the files, no patches
 SRC_URI += " \
     file://arch/arm64/boot/dts/sysele/astrial-h15.dts \
+    file://arch/arm64/boot/dts/sysele/astrial-h15-ws101.dts \
+    file://arch/arm64/boot/dts/sysele/panel-ws101.dts \
     file://arch/arm64/boot/dts/sysele/Makefile \
 "
 do_configure:prepend() {
@@ -13,6 +15,8 @@ do_configure:prepend() {
     
     # Copy device tree files
     cp ${WORKDIR}/arch/arm64/boot/dts/sysele/astrial-h15.dts ${S}/arch/arm64/boot/dts/sysele/
+    cp ${WORKDIR}/arch/arm64/boot/dts/sysele/astrial-h15-ws101.dts ${S}/arch/arm64/boot/dts/sysele/
+    cp ${WORKDIR}/arch/arm64/boot/dts/sysele/panel-ws101.dts ${S}/arch/arm64/boot/dts/sysele/
     cp ${WORKDIR}/arch/arm64/boot/dts/sysele/Makefile ${S}/arch/arm64/boot/dts/sysele/
     
     # Instead of patching, directly modify the main Makefile
@@ -46,3 +50,97 @@ SRC_URI:append = " file://i2c-gpio.cfg"
 # presents vdid 1, which the driver refuses in that mode. Experimental, the
 # reasoning is in the patch header.
 SRC_URI:append = " file://0006-isp-allow-vdid-nonzero-without-fe.patch"
+
+# Waveshare DSI 10.1" 1280x800 panel. The driver is not upstream: it comes from
+# the Raspberry Pi fork and has to be re-taken by hand on every kernel bump. The
+# patch header lists the four points to re-check when that happens.
+SRC_URI:append = " file://0007-panel-waveshare-dsi.patch \
+    file://waveshare-dsi.cfg"
+
+# Panel MCU: check and retry every i2c write and log the failure. Diagnostics:
+# it is how the MCU state that NACKs every write while still ACKing reads was
+# found. The configuration registers stay in probe.
+SRC_URI:append = " file://0008-panel-waveshare-check-and-retry-mcu-writes.patch"
+
+# cdns-dsi: the D-PHY was initialized and powered on and never de-initialized,
+# so it was never rebuilt after a suspend. Upstream fix, plus a synchronous
+# suspend so the clock and reset cycle is guaranteed before post_disable
+# returns.
+SRC_URI:append = " file://0009-cdns-dsi-fix-phy-de-init.patch"
+
+# cdns-dsi: video was enabled without waiting for the clock and data lanes to
+# leave LP. Upstream fix, already in stable, plus a measurement of how long the
+# wait actually takes, which is the diagnosis we still owe the Hailo ticket.
+SRC_URI:append = " file://0010-cdns-dsi-wait-for-lanes-ready.patch"
+
+# Panel: the MCU has no readable ID, so a wrong device tree drives the wrong
+# panel silently. Say at probe what the device tree asked for.
+SRC_URI:append = " file://0011-panel-waveshare-log-selected-panel.patch"
+
+# D-PHY: power_off never stopped the TX state machine that power_on starts.
+# Aligned with mainline.
+SRC_URI:append = " file://0012-cdns-dphy-stop-tx-state-machine-in-power-off.patch"
+
+# D-PHY: is_configured / is_powered state and the power_on guard, as mainline.
+SRC_URI:append = " file://0013-cdns-dphy-guard-power-on.patch"
+
+# D-PHY: pm_runtime calls with no hardware effect, absent in mainline.
+# esc_clk handling stays, it is a Hailo addition.
+SRC_URI:append = " file://0014-cdns-dphy-drop-pm-runtime-calls.patch"
+
+# cdns-dsi: clear the lane ready flags together with PLL_LOCKED, so the wait
+# measured by 0010 is real on every cycle and not only on the first one.
+SRC_URI:append = " file://0015-cdns-dsi-clear-stale-lane-ready-flags.patch"
+
+# cdns-dsi: log a failed phy_power_on instead of ignoring it.
+SRC_URI:append = " file://0016-cdns-dsi-report-failed-phy-power-on.patch"
+
+# D-PHY: keep the calibration wait time field when starting the state machine,
+# as mainline, instead of overwriting the whole register.
+SRC_URI:append = " file://0017-cdns-dphy-preserve-ssm-calibration-wait-time.patch"
+
+# D-PHY: PSM divider set up in power_on, as mainline. First patch to drop if
+# this series makes things worse: it changes register programming order.
+SRC_URI:append = " file://0018-cdns-dphy-set-up-psm-in-power-on.patch"
+
+# Diagnostic, inert by default: cdns_dphy.cal_wait_time=N forces the PHY
+# calibration wait at power on. To be removed once the boot threshold is known.
+SRC_URI:append = " file://0019-cdns-dphy-diagnostic-cal-wait-time.patch"
+
+# Diagnostic, inert by default: cdns_dsi.video_delay_ms=N delays VID_EN where
+# the old 262 ms were. To be removed once the boot threshold is known.
+SRC_URI:append = " file://0020-cdns-dsi-diagnostic-video-delay.patch"
+
+# Diagnostic, inert by default: hailo_drm.first_enable_delay_ms=N delays the
+# first DPI scanout after probe. To be removed once the boot threshold is known.
+SRC_URI:append = " file://0021-hailo-drm-diagnostic-first-enable-delay.patch"
+
+# hailo-drm: the two DPI frame counters one cycle apart, from the computed
+# value. Equal values make the DPI stall after about 35000 frames.
+SRC_URI:append = " file://0022-hailo-drm-frame-counter-off-by-one.patch"
+
+# cdns-dsi: at disable, wait for the video stream generator to stop before
+# returning, so the next enable does not inherit a half finished frame.
+SRC_URI:append = " file://0023-cdns-dsi-wait-for-vsg-to-stop-at-disable.patch"
+
+# cdns-dsi: watchdog that restarts the generator when it stops with errors.
+# The net, not the fix: its counters should stay at zero.
+SRC_URI:append = " file://0024-cdns-dsi-vsg-watchdog.patch"
+
+# cdns-dsi: force the lane stop state during PHY bring-up, from mainline.
+SRC_URI:append = " file://0025-cdns-dsi-force-stop-state-during-phy-init.patch"
+
+# cdns-dsi: declare negative syncs and DE high in an atomic check, from
+# mainline. First patch to drop if the modeset breaks.
+SRC_URI:append = " file://0026-cdns-dsi-negative-syncs-and-bus-flags.patch"
+
+# Working defaults for the two enable delays: 300 ms once at first scanout,
+# 20 ms before VID_EN on every enable.
+SRC_URI:append = " file://0027-dsi-enable-delay-defaults.patch"
+
+# hailo-drm: export the scanout stop, so the DSI bridge can stop its source.
+SRC_URI:append = " file://0029-hailo-drm-export-scanout-stop.patch"
+
+# cdns-dsi: stop the source and let it settle before shutting the controller
+# down. This is the fix for the dark panel after a pipeline exit.
+SRC_URI:append = " file://0030-cdns-dsi-stop-the-source-before-disabling.patch"

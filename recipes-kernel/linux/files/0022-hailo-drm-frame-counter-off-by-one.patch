@@ -1,0 +1,41 @@
+From: System Electronics
+Date: Wed, 16 Sep 2026 11:00:00 +0200
+Subject: [PATCH] drm/hailo: program the two DPI frame counters one cycle apart
+
+The driver computes frame_cycles and then writes the constant 10000000 to
+both DPM_9 and HEADER_4. With the two registers set to the same value the
+two frame counters inside the DPI drift one 600 MHz cycle per frame, and
+after about 35000 frames the DPI stops feeding the DSI: the display goes
+black every 587 s at 60 Hz, and only a restart of the video stream
+generator brings it back.
+
+Measured on Astrial H15 with a 1280x800 panel: HEADER_4 one cycle above
+DPM_9 keeps the display alive for 5961 s across three windows, 1800 s of
+them with a 30 fps stream, and the count resumes exactly where it stopped
+when the two values are made equal again. One cycle below halves the time
+to failure, 296 s instead of 587 s, which is what an off-by-one predicts.
+
+Use the computed value as well: on this SoC it is exactly 10000000, so no
+register bit changes today, but the relation survives a mode change.
+
+Upstream-Status: Pending
+
+---
+--- a/drivers/gpu/drm/hailo/hailo_drv.c
++++ b/drivers/gpu/drm/hailo/hailo_drv.c
+@@ -161,9 +161,12 @@
+ 	writel(SW_UPDATE_TIME_RANGE((frame_duration_ns * 2) / 3),
+ 	       priv->regs + DPM_7);
+ 
+-	// frame_cycles = dsi_sys_clk / refresh = 600 MHz / 60 = 10M
+-	writel(10000000, priv->regs + DPM_9);
+-	writel(10000000, priv->regs + HEADER_4);
++	/*
++	 * HEADER_4 one cycle above DPM_9: with equal values the two frame
++	 * counters slip one cycle per frame and the stream stalls.
++	 */
++	writel(frame_cycles - 1, priv->regs + DPM_9);
++	writel(frame_cycles, priv->regs + HEADER_4);
+ 
+ 	writel(CFG_HA_STREAM_START, priv->regs + HA_STREAM_START_EXT_DATA_OUT);
+ 

@@ -1,0 +1,81 @@
+From: System Electronics
+Date: Thu, 10 Sep 2026 12:20:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: wait for clock and data lanes to be ready
+
+Backport of "drm/bridge: cdns-dsi: Wait for Clk and Data Lanes to be
+ready", patch 05 of the same upstream series, which has already been taken
+into stable.
+
+cdns_dsi_bridge_enable() raised VID_EN without ever checking that the
+D-PHY clock and data lanes had finished their LP to HS transition. The
+cover letter of the series states the requirement plainly: "This
+controller requires to be enabled before the previous entity enables its
+stream. It's a strict requirement which, if not followed, causes the
+colors to 'shift' on the display."
+
+On the Astrial H15 the display pipe violates that order in the other
+direction: the Hailo DPI starts its scanout in the CRTC atomic_enable,
+which the atomic helper runs before the bridge pre_enable where the D-PHY
+is brought up. Waiting for the lanes here is the half of the fix that is
+local to this driver and affordable now. The real fix is patches 10 to 14
+of the same series, which reorder the bridge chain against the CRTC in
+the atomic helper core, and is not backportable on this schedule.
+
+The register bits already existed in our tree: MCTL_MAIN_STS, CLK_LANE_RDY
+and DATA_LANE_RDY(l).
+
+Local addition: measure and log how long the wait takes. readl_poll_timeout
+only reports whether it expired, and the shape of the wait is itself the
+diagnosis. A long first wait followed by short ones points at the ordering
+inversion above; a wait that is always near zero means this patch is not
+what fixed anything, and the credit belongs to the phy de-init patch.
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -16,6 +16,7 @@
+ #include <linux/clk.h>
+ #include <linux/interrupt.h>
+ #include <linux/iopoll.h>
++#include <linux/ktime.h>
+ #include <linux/module.h>
+ #include <linux/of_address.h>
+ #include <linux/of_graph.h>
+@@ -791,7 +792,11 @@
+ 	unsigned long tx_byte_period;
+ 	struct cdns_dsi_cfg dsi_cfg;
+ 	u32 tmp, reg_wakeup, div;
++	u32 status, lane_mask;
++	ktime_t phy_wait_start;
++	s64 phy_wait_us;
+ 	int nlanes;
++	int i, ret;
+ 
+ 	if (WARN_ON(pm_runtime_get_sync(dsi->base.dev) < 0))
+ 		return;
+@@ -804,6 +809,25 @@
+ 	cdns_dsi_hs_init(dsi);
+ 	cdns_dsi_init_link(dsi);
+ 
++	/* Wait for clock and data lanes before enabling video, and log how long. */
++	lane_mask = CLK_LANE_RDY;
++	for (i = 0; i < nlanes; i++)
++		lane_mask |= DATA_LANE_RDY(i);
++
++	phy_wait_start = ktime_get();
++	ret = readl_poll_timeout(dsi->regs + MCTL_MAIN_STS, status,
++				 (status & lane_mask) == lane_mask,
++				 100, 500000);
++	phy_wait_us = ktime_us_delta(ktime_get(), phy_wait_start);
++	if (ret)
++		dev_err(dsi->base.dev,
++			"Timed Out: DSI-DPhy Clock and Data Lanes not ready after %lld us (MCTL_MAIN_STS 0x%08x, wanted 0x%08x)\n",
++			phy_wait_us, status, lane_mask);
++	else
++		dev_info(dsi->base.dev,
++			 "DSI-DPhy Clock and Data Lanes ready after %lld us\n",
++			 phy_wait_us);
++
+ 	writel(HBP_LEN(dsi_cfg.hbp) | HSA_LEN(dsi_cfg.hsa),
+ 	       dsi->regs + VID_HSIZE1);
+ 	writel(HFP_LEN(dsi_cfg.hfp) | HACT_LEN(dsi_cfg.hact),

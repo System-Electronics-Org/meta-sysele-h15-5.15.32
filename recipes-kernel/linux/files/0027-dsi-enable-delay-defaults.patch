@@ -1,0 +1,40 @@
+From: System Electronics
+Date: Wed, 16 Sep 2026 11:50:00 +0200
+Subject: [PATCH] drm: dsi: give the enable delays their working defaults
+
+Both delays existed but were inert, and the values are now measured.
+
+300 ms before the first scanout after probe: without it the first modeset
+of every boot ends with the generator stopped and the panel dark, with it
+two boots out of two come up clean, one of them from cold. The cost is
+paid once.
+
+20 ms before VID_EN on every enable: at a pipeline exit 300 ms never
+helped, 0 out of 9, so the long delay would be black screen for nothing.
+20 ms is one frame plus margin.
+
+Upstream-Status: Inappropriate [platform workaround]
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -946,7 +946,7 @@
+ 	dsi->link_initialized = true;
+ }
+ 
+-static unsigned int video_delay_ms;
++static unsigned int video_delay_ms = 20;
+ module_param(video_delay_ms, uint, 0444);
+ MODULE_PARM_DESC(video_delay_ms, "Diagnostic: delay in ms before enabling video, after the lanes are ready");
+ 
+--- a/drivers/gpu/drm/hailo/hailo_drv.c
++++ b/drivers/gpu/drm/hailo/hailo_drv.c
+@@ -98,7 +98,7 @@
+ 	DRM_FORMAT_RGB888,
+ };
+ 
+-static unsigned int first_enable_delay_ms;
++static unsigned int first_enable_delay_ms = 300;
+ module_param(first_enable_delay_ms, uint, 0444);
+ MODULE_PARM_DESC(first_enable_delay_ms, "Diagnostic: delay in ms before the first scanout after probe");
+ 

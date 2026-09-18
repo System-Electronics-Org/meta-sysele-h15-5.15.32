@@ -1,0 +1,38 @@
+From: System Electronics
+Date: Mon, 14 Sep 2026 10:00:00 +0200
+Subject: [PATCH] phy: cdns-dphy: stop the TX state machine in power_off
+
+cdns_dphy_power_on() starts the startup state machine by setting
+DPHY_CMN_SSM_EN, and cdns_dphy_power_off() never cleared it, so a
+power_off did not actually stop the PHY. Measured on Astrial H15:
+DPHY_CMN_SSM (0x7c01a020) reads 0x00000201 both before and after a
+power_off.
+
+Mainline clears the bit in power_off, after gating the clocks. Do the
+same, in the same order.
+
+Clearing the bit by hand with devmem on a board without this patch did
+not bring a dead panel back, but that experiment read the lane ready
+flags without clearing them first (see 0015), so it is not evidence
+either way. This is alignment with mainline, not a claimed fix.
+
+---
+--- a/drivers/phy/cadence/cdns-dphy.c
++++ b/drivers/phy/cadence/cdns-dphy.c
+@@ -339,11 +339,16 @@
+ static int cdns_dphy_power_off(struct phy *phy)
+ {
+ 	struct cdns_dphy *dphy = phy_get_drvdata(phy);
++	u32 reg;
+ 
+ 	clk_disable_unprepare(dphy->pll_ref_clk);
+ 	clk_disable_unprepare(dphy->psm_clk);
+ 	clk_disable_unprepare(dphy->esc_clk);
+ 
++	/* Stop TX state machine. */
++	reg = readl(dphy->regs + DPHY_CMN_SSM);
++	writel(reg & ~DPHY_CMN_SSM_EN, dphy->regs + DPHY_CMN_SSM);
++
+ 	pm_runtime_put_sync(&phy->dev);
+ 	pm_runtime_set_suspended(&phy->dev);
+ 	pm_runtime_disable(&phy->dev);

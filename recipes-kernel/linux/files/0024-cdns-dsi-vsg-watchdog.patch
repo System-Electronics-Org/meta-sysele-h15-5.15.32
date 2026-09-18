@@ -1,0 +1,244 @@
+From: System Electronics
+Date: Wed, 16 Sep 2026 11:20:00 +0200
+Subject: [PATCH] drm/bridge: cdns-dsi: restart the VSG when it stops with errors
+
+When the video stream generator loses its input it stops and never comes
+back: the panel stays dark until something toggles VID_EN. Three different
+situations do it on this board, and the display never recovers on its own.
+
+A deferrable timer polls the status while the bridge is on and toggles
+VID_EN when the generator is stuck. It runs every 20 ms for a second after
+each enable, where the first restart is known to fail again after about
+18 ms, then every second as a net. Only an enable opens that fast window:
+a restart does not renew it, or a generator that never comes back keeps
+the timer at the fast period forever.
+
+One status read is not enough: a healthy generator drops VSG_RUNNING for
+0.3 ms once per frame, so the condition is confirmed over more than a
+frame, and error bits count only when they are live in two readings.
+
+When the generator cannot be revived the watchdog gives up after
+vsg_watchdog_max_retries restarts in a row and waits for the next enable.
+Without it a dead generator is retried for as long as the display is on:
+a panel that flickers back every 183 ms in front of a customer is worse
+than a panel that stays dark, and the retries hide the failure instead of
+reporting it.
+
+The flags are cleared at enable because nothing else ever clears them and
+stale values would trigger the first check.
+
+Counters are exposed as module parameters so a run can be judged by
+numbers: if they stay at zero the watchdog is not doing anything and the
+rest of the series is holding.
+
+Upstream-Status: Inappropriate [platform workaround]
+
+---
+--- a/drivers/gpu/drm/bridge/cdns-dsi.c
++++ b/drivers/gpu/drm/bridge/cdns-dsi.c
+@@ -24,6 +24,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/reset.h>
++#include <linux/workqueue.h>
+ 
+ #include <linux/phy/phy.h>
+ #include <linux/phy/phy-mipi-dphy.h>
+@@ -467,6 +468,10 @@
+ 	bool phy_initialized;
+ 	struct phy *dphy;
+ 	bool tvg_mode_enable;
++	struct delayed_work vsg_work;
++	unsigned long vsg_fast_until;
++	bool vsg_enabled;
++	unsigned int vsg_fail_streak;
+ };
+ 
+ static inline struct cdns_dsi *input_to_dsi(struct cdns_dsi_input *input)
+@@ -696,6 +701,150 @@
+ 	return MODE_OK;
+ }
+ 
++static bool vsg_watchdog = true;
++module_param(vsg_watchdog, bool, 0444);
++MODULE_PARM_DESC(vsg_watchdog, "Restart the video stream generator when it stops with errors");
++
++static unsigned int vsg_watchdog_period_ms = 1000;
++module_param(vsg_watchdog_period_ms, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_period_ms, "Watchdog period in ms outside the window after enable");
++
++static unsigned int vsg_watchdog_fast_ms = 20;
++module_param(vsg_watchdog_fast_ms, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_fast_ms, "Watchdog period in ms inside the window after enable");
++
++static unsigned int vsg_watchdog_fast_window_ms = 1000;
++module_param(vsg_watchdog_fast_window_ms, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_fast_window_ms, "How long the fast period lasts after each enable");
++
++static unsigned int vsg_watchdog_pause_ms = 100;
++module_param(vsg_watchdog_pause_ms, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_pause_ms, "How long VID_EN stays low during a restart");
++
++static unsigned int vsg_watchdog_max_retries = 5;
++module_param(vsg_watchdog_max_retries, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_max_retries, "Consecutive failed restarts before the watchdog gives up");
++
++static unsigned int vsg_watchdog_slow_count;
++module_param(vsg_watchdog_slow_count, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_slow_count, "Restarts done at the slow period");
++
++static unsigned int vsg_watchdog_fast_count;
++module_param(vsg_watchdog_fast_count, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_fast_count, "Restarts done at the fast period");
++
++static unsigned int vsg_watchdog_failed;
++module_param(vsg_watchdog_failed, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_failed, "Restarts that did not bring the generator back");
++
++static unsigned int vsg_watchdog_retry_streak;
++module_param(vsg_watchdog_retry_streak, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_retry_streak, "Failed restarts in a row, back to zero on the first one that works");
++
++static unsigned int vsg_watchdog_gave_up;
++module_param(vsg_watchdog_gave_up, uint, 0444);
++MODULE_PARM_DESC(vsg_watchdog_gave_up, "Times the watchdog stopped retrying until the next enable");
++
++/*
++ * A healthy generator drops VSG_RUNNING for about 0.3 ms once per frame, so
++ * one reading is never enough: confirm over more than a frame.
++ */
++static bool cdns_dsi_vsg_broken(struct cdns_dsi *dsi)
++{
++	u32 first, second;
++
++	if (!(readl(dsi->regs + MCTL_MAIN_DATA_CTL) & VID_EN))
++		return false;
++
++	first = readl(dsi->regs + VID_MODE_STS);
++	if ((first & VSG_RUNNING) &&
++	    !(first & (ERR_MISSING_DATA | ERR_SMALL_HEIGHT)))
++		return false;
++
++	usleep_range(20000, 25000);
++	second = readl(dsi->regs + VID_MODE_STS);
++
++	if (first & second & (ERR_MISSING_DATA | ERR_SMALL_HEIGHT))
++		return true;
++
++	return !((first | second) & VSG_RUNNING);
++}
++
++static void cdns_dsi_vsg_restart(struct cdns_dsi *dsi, unsigned int pause_ms)
++{
++	u32 val;
++
++	writel(GENMASK(10, 0), dsi->regs + VID_MODE_STS_CLR);
++	val = readl(dsi->regs + MCTL_MAIN_DATA_CTL);
++	writel(val & ~VID_EN, dsi->regs + MCTL_MAIN_DATA_CTL);
++	msleep(pause_ms);
++	writel(val | VID_EN, dsi->regs + MCTL_MAIN_DATA_CTL);
++}
++
++static void cdns_dsi_vsg_watchdog_work(struct work_struct *work)
++{
++	struct cdns_dsi *dsi = container_of(to_delayed_work(work),
++					    struct cdns_dsi, vsg_work);
++	bool fast = time_before(jiffies, dsi->vsg_fast_until);
++	unsigned int period = fast ? vsg_watchdog_fast_ms : vsg_watchdog_period_ms;
++
++	if (!dsi->vsg_enabled)
++		return;
++
++	if (cdns_dsi_vsg_broken(dsi)) {
++		cdns_dsi_vsg_restart(dsi, fast ? vsg_watchdog_fast_ms :
++						 vsg_watchdog_pause_ms);
++		if (fast)
++			vsg_watchdog_fast_count++;
++		else
++			vsg_watchdog_slow_count++;
++
++		/*
++		 * The first restart after the DPI was reprogrammed often fails
++		 * again after about 18 ms: look once more before counting it.
++		 */
++		if (!cdns_dsi_vsg_broken(dsi)) {
++			dsi->vsg_fail_streak = 0;
++			vsg_watchdog_retry_streak = 0;
++		} else {
++			vsg_watchdog_failed++;
++			dsi->vsg_fail_streak++;
++			vsg_watchdog_retry_streak = dsi->vsg_fail_streak;
++
++			if (dsi->vsg_fail_streak >= vsg_watchdog_max_retries) {
++				vsg_watchdog_gave_up++;
++				dev_warn(dsi->base.dev,
++					 "video stream generator did not come back in %u restarts, not retrying until the next enable\n",
++					 dsi->vsg_fail_streak);
++				return;
++			}
++		}
++	}
++
++	if (dsi->vsg_enabled)
++		schedule_delayed_work(&dsi->vsg_work, msecs_to_jiffies(period));
++}
++
++static void cdns_dsi_vsg_watchdog_start(struct cdns_dsi *dsi)
++{
++	if (!vsg_watchdog)
++		return;
++
++	dsi->vsg_fast_until = jiffies +
++			      msecs_to_jiffies(vsg_watchdog_fast_window_ms);
++	dsi->vsg_fail_streak = 0;
++	vsg_watchdog_retry_streak = 0;
++	dsi->vsg_enabled = true;
++	schedule_delayed_work(&dsi->vsg_work,
++			      msecs_to_jiffies(vsg_watchdog_fast_ms));
++}
++
++static void cdns_dsi_vsg_watchdog_stop(struct cdns_dsi *dsi)
++{
++	dsi->vsg_enabled = false;
++	cancel_delayed_work_sync(&dsi->vsg_work);
++}
++
+ static unsigned int disable_wait_ms = 50;
+ module_param(disable_wait_ms, uint, 0444);
+ MODULE_PARM_DESC(disable_wait_ms, "Max ms to wait at disable for the video stream generator to stop");
+@@ -711,6 +860,8 @@
+ 	u32 val, sts;
+ 	int ret;
+ 
++	cdns_dsi_vsg_watchdog_stop(dsi);
++
+ 	val = readl(dsi->regs + MCTL_MAIN_DATA_CTL);
+ 	val &= ~(IF_VID_SELECT_MASK | IF_VID_MODE | VID_EN | HOST_EOT_GEN |
+ 		 DISP_EOT_GEN);
+@@ -1004,6 +1155,10 @@
+ 		tmp = readl(dsi->regs + MCTL_MAIN_EN) | IF_EN(input->id);
+ 		writel(tmp, dsi->regs + MCTL_MAIN_EN);
+ 	}
++
++	/* Flags are never cleared elsewhere and survive a modeset. */
++	writel(GENMASK(10, 0), dsi->regs + VID_MODE_STS_CLR);
++	cdns_dsi_vsg_watchdog_start(dsi);
+ }
+ 
+ static void cdns_dsi_bridge_pre_enable(struct drm_bridge *bridge)
+@@ -1353,6 +1508,7 @@
+ 	dsi->direct_cmd_fifo_depth = 1 << (DIRCMD_FIFO_DEPTH(val) + 2);
+ 	dsi->rx_fifo_depth = RX_FIFO_DEPTH(val);
+ 	init_completion(&dsi->direct_cmd_comp);
++	INIT_DEFERRABLE_WORK(&dsi->vsg_work, cdns_dsi_vsg_watchdog_work);
+ 
+ 	writel(0, dsi->regs + MCTL_MAIN_DATA_CTL);
+ 	writel(0, dsi->regs + MCTL_MAIN_EN);
+@@ -1404,6 +1560,7 @@
+ {
+ 	struct cdns_dsi *dsi = platform_get_drvdata(pdev);
+ 
++	cdns_dsi_vsg_watchdog_stop(dsi);
+ 	mipi_dsi_host_unregister(&dsi->base);
+ 	pm_runtime_disable(&pdev->dev);
+ 

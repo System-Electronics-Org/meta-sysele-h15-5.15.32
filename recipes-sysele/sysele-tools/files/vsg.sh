@@ -1,0 +1,45 @@
+#!/bin/sh
+# Stato del generatore video del DSI (VSG) e riavvio di VID_EN.
+# Uso: ./vsg.sh          solo lettura
+#      ./vsg.sh fix      spegne VID_EN, attende 100 ms, lo riaccende, rilegge
+#      ./vsg.sh rec N    imposta RECOVERY_MODE in VID_MAIN_CTL e rilegge
+#                        (0 hsync successiva, default del driver; 2 stop point;
+#                        3 vsync successiva). Il bridge_enable lo riscrive a
+#                        ogni modeset.
+rd() { devmem $1 32; }
+hist() {
+  i=0
+  while [ $i -lt $1 ]; do devmem $2 32; i=$((i+1)); done | sort | uniq -c | sort -rn | head -3 | tr "\n" ";"
+}
+show() {
+  v=$(rd 0x7c0180f0)
+  if [ $((v & 1)) -eq 1 ]; then g="GIRA"; else g="FERMO"; fi
+  m=$(rd 0x7c0180b0)
+  echo "  uptime $(cut -d' ' -f1 /proc/uptime)  generatore $g  DATA_CTL $(rd 0x7c018004)  VID_MODE_STS_FLAG $(rd 0x7c018180)"
+  echo "  VID_MAIN_CTL $m  RECOVERY_MODE $(( (m >> 25) & 3 ))"
+  echo "  VID_MODE_STS: $(hist 50 0x7c0180f0)"
+  echo "  LANE_STS:     $(hist 50 0x7c01802c)"
+}
+
+echo "--- stato"
+show
+
+case "$1" in
+fix)
+  d=$(rd 0x7c018004)
+  devmem 0x7c018160 32 0xFFFFFFFF
+  devmem 0x7c018004 32 $(printf "0x%08X" $((d & ~0x20)))
+  usleep 100000 2>/dev/null || sleep 0.1
+  devmem 0x7c018004 32 $(printf "0x%08X" $((d | 0x20)))
+  sleep 1
+  echo "--- dopo il riavvio di VID_EN"
+  show
+  ;;
+rec)
+  case "$2" in 0|2|3) ;; *) echo "rec vuole 0, 2 o 3"; exit 1 ;; esac
+  m=$(rd 0x7c0180b0)
+  devmem 0x7c0180b0 32 $(printf "0x%08X" $(( (m & ~(3 << 25)) | ($2 << 25) )))
+  echo "--- dopo RECOVERY_MODE=$2"
+  show
+  ;;
+esac

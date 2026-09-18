@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Astrial H15 with the Waveshare 10.1" 1280x800 DSI panel (WS-23450).
+ *
+ * Everything comes from the base tree; only the panel node changes. Select
+ * this variant at boot with, from Linux:
+ *
+ *     fw_setenv board_dtb astrial-h15-ws101 && reboot
+ *
+ * The Waveshare MCU answers at the same I2C address as the Raspberry Pi
+ * panel and dims the backlight itself over I2C, so the PWM pinctrl the
+ * base tree carries is not used here.
+ */
+
+#include "astrial-h15.dts"
+
+&panel_lcd {
+    compatible = "waveshare,10.1inch-panel";
+    /delete-property/ pinctrl-names;
+    /delete-property/ pinctrl-0;
+};

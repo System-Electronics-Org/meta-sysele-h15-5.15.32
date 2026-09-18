@@ -9,7 +9,21 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda
 SRC_URI = " \
     file://sysele-motd.sh \
     file://sysele-info \
+    file://vsg.sh \
+    file://regdump.sh \
+    file://stream.sh \
+    file://setup.sh \
+    file://vsg_trace.c \
+    file://vsg_period.c \
+    file://vsg_watchdog.c \
+    file://clr_keeper.c \
+    file://dpi_stopper.c \
 "
+
+# Display bring-up and diagnostic tools. The C ones read and write the DSI and
+# DPI registers through /dev/mem, so they are root-only by nature.
+SYSELE_TOOLS_C = "vsg_trace vsg_period vsg_watchdog clr_keeper dpi_stopper"
+SYSELE_TOOLS_SH = "vsg.sh regdump.sh stream.sh setup.sh"
 
 S = "${WORKDIR}"
 
@@ -21,6 +35,12 @@ SYSELE_DIR = "/opt/sysele"
 # DATETIME changes on every build. Without this the task signature changes too,
 # the recipe rebuilds every time and it invalidates the sstate cache behind it.
 do_install[vardepsexclude] += "DATETIME"
+
+do_compile() {
+    for t in ${SYSELE_TOOLS_C}; do
+        ${CC} ${CFLAGS} ${LDFLAGS} -o ${B}/$t ${WORKDIR}/$t.c -lm
+    done
+}
 
 do_install() {
     # An empty directory is not packaged on its own; it has to be created here
@@ -47,6 +67,17 @@ do_install() {
 SYSELE_EOF
 
     install -m 0755 ${WORKDIR}/sysele-info ${D}${SYSELE_DIR}/bin/sysele-info
+
+    # Tools, plus the sources of the compiled ones: they are read on the board
+    # more often than they are rebuilt.
+    install -d ${D}${SYSELE_DIR}/src
+    for t in ${SYSELE_TOOLS_C}; do
+        install -m 0755 ${B}/$t ${D}${SYSELE_DIR}/bin/$t
+        install -m 0644 ${WORKDIR}/$t.c ${D}${SYSELE_DIR}/src/$t.c
+    done
+    for t in ${SYSELE_TOOLS_SH}; do
+        install -m 0755 ${WORKDIR}/$t ${D}${SYSELE_DIR}/bin/$t
+    done
     install -m 0644 ${WORKDIR}/sysele-motd.sh ${D}${sysconfdir}/profile.d/sysele-motd.sh
 }
 

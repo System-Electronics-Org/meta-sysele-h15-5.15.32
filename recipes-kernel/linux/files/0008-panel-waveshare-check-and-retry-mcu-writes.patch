@@ -1,0 +1,84 @@
+From: System Electronics
+Date: Thu, 11 Sep 2026 18:00:00 +0200
+Subject: [PATCH] drm/panel: waveshare-dsi: check and retry the MCU i2c writes
+
+Make ws_panel_i2c_write() return its error and retry a few times, in the
+same shape as 0001-rpi-touchscreen-retry-reg-id-read.patch, and let
+enable() and disable() propagate the failure instead of dropping it.
+
+This is diagnostics, not a fix. On a clean boot there are no failures at
+all. It earns its place because it is how we found a failure mode of this
+MCU that was previously invisible: it can reach a state where it NACKs
+every write with -EREMOTEIO while still ACKing reads, it survives a board
+reboot and an eMMC reflash, and only a power cycle of the panel 5V rail
+clears it. Without the return value being checked and logged, that state
+produced a black panel and a completely silent log.
+
+An earlier version of this patch also moved the 0xc0, 0xc2 and 0xac writes
+from probe() to prepare(). That part has been dropped: it was later
+measured that sending those three registers to a panel that is already on
+turns its backlight off, so they are not configuration registers, and
+prepare() runs on every enable. The move was turning the panel off every
+time the pipeline came up. They stay in probe().
+
+---
+--- a/drivers/gpu/drm/panel/panel-waveshare-dsi.c
++++ b/drivers/gpu/drm/panel/panel-waveshare-dsi.c
+@@ -308,22 +308,35 @@
+ 	return container_of(panel, struct ws_panel, base);
+ }
+ 
+-static void ws_panel_i2c_write(struct ws_panel *ts, u8 reg, u8 val)
++static int ws_panel_i2c_write(struct ws_panel *ts, u8 reg, u8 val)
+ {
+-	int ret;
++	int ret, i;
+ 
+-	ret = i2c_smbus_write_byte_data(ts->i2c, reg, val);
+-	if (ret)
+-		dev_err(&ts->i2c->dev, "I2C write failed: %d\n", ret);
++	for (i = 0; i < 5; i++) {
++		ret = i2c_smbus_write_byte_data(ts->i2c, reg, val);
++		if (!ret)
++			return 0;
++
++		dev_warn(&ts->i2c->dev,
++			 "I2C write 0x%02x=0x%02x attempt %d/5 failed: %d\n",
++			 reg, val, i + 1, ret);
++
++		if (i < 4)
++			usleep_range(2000, 3000);
++	}
++
++	dev_err(&ts->i2c->dev,
++		"I2C write 0x%02x=0x%02x failed after 5 attempts: %d\n",
++		reg, val, ret);
++
++	return ret;
+ }
+ 
+ static int ws_panel_disable(struct drm_panel *panel)
+ {
+ 	struct ws_panel *ts = panel_to_ts(panel);
+ 
+-	ws_panel_i2c_write(ts, 0xad, 0x00);
+-
+-	return 0;
++	return ws_panel_i2c_write(ts, 0xad, 0x00);
+ }
+ 
+ static int ws_panel_unprepare(struct drm_panel *panel)
+@@ -341,11 +354,9 @@
+ 	struct ws_panel *ts = panel_to_ts(panel);
+ 
+ 	if (ts->mode == &ws_panel_13_3_2lane_mode)
+-		ws_panel_i2c_write(ts, 0xad, 0x02);
+-	else
+-		ws_panel_i2c_write(ts, 0xad, 0x01);
++		return ws_panel_i2c_write(ts, 0xad, 0x02);
+ 
+-	return 0;
++	return ws_panel_i2c_write(ts, 0xad, 0x01);
+ }
+ 
+ static int ws_panel_get_modes(struct drm_panel *panel,
