@@ -11,7 +11,7 @@ SRC_URI = " \
     file://sysele-path.sh \
     file://sysele-info \
     file://sysele-config \
-    file://demo \
+    file://dsi_demo \
     file://camera_ae.conf \
     file://dsi_status \
     file://dsi_stream \
@@ -33,7 +33,7 @@ SRC_URI = " \
 # write DSI and DPI registers through /dev/mem at full speed and can stop the
 # panel, so they stay in their own directory, out of the PATH, where they have to
 # be asked for by name.
-SYSELE_CMD_SH = "demo sysele-config dsi_status dsi_stream dsi_config reg_dump"
+SYSELE_CMD_SH = "dsi_demo sysele-config dsi_status dsi_stream dsi_config reg_dump"
 SYSELE_CMD_C = "dsi_trace"
 SYSELE_DIAG_C = "vsg_period vsg_watchdog clr_keeper dpi_stopper"
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Avvia la demo sul pannello DSI: camera, auto-esposizione, video a schermo.
-# Uso: demo [secondi]        senza argomenti gira finche' non lo fermi
+# Uso: dsi_demo [secondi]    senza argomenti gira finche' non lo fermi
 # Le manopole stanno in etc/camera_ae.conf, dentro /opt/sysele.
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 case "$1" in -h|--help|help) usage; exit 0 ;; esac
@@ -13,7 +13,7 @@ DUR=$1
 
 AE_MODE=native; AE_FIXED_US=10000; FLICKER=0
 [ -r "$CONF" ] && . "$CONF"
-say() { echo "demo: $*"; }
+say() { echo "dsi_demo: $*"; }
 
 # Il sensore e la sua bus si leggono dal nome del subdev, non si danno per
 # scontati: la numerazione i2c e' gia' cambiata una volta.
