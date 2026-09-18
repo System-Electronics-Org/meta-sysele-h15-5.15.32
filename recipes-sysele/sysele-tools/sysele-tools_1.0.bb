@@ -11,6 +11,8 @@ SRC_URI = " \
     file://sysele-path.sh \
     file://sysele-info \
     file://sysele-config \
+    file://demo \
+    file://camera_ae.conf \
     file://dsi_status \
     file://dsi_stream \
     file://dsi_config \
@@ -31,7 +33,7 @@ SRC_URI = " \
 # write DSI and DPI registers through /dev/mem at full speed and can stop the
 # panel, so they stay in their own directory, out of the PATH, where they have to
 # be asked for by name.
-SYSELE_CMD_SH = "sysele-config dsi_status dsi_stream dsi_config reg_dump"
+SYSELE_CMD_SH = "demo sysele-config dsi_status dsi_stream dsi_config reg_dump"
 SYSELE_CMD_C = "dsi_trace"
 SYSELE_DIAG_C = "vsg_period vsg_watchdog clr_keeper dpi_stopper"
 
@@ -82,6 +84,10 @@ do_install() {
 SYSELE_EOF
 
     install -m 0755 ${WORKDIR}/sysele-info ${D}${SYSELE_DIR}/bin/sysele-info
+
+    # Le manopole della demo stanno accanto ai comandi, non fra i file generati:
+    # in fiera si aprono e si modificano.
+    install -m 0644 ${WORKDIR}/camera_ae.conf ${D}${SYSELE_DIR}/camera_ae.conf
 
     # What sysele-config is allowed to select, derived from the same variable
     # that puts the trees in the FIT: a hand written list would drift from the
@@ -141,6 +147,7 @@ SYSELE_EOF
     # this is a System Electronics product before they see anything else.
     install -d ${D}${SYSELE_ROOT_HOME}
     ln -sf ${SYSELE_DIR} ${D}${SYSELE_ROOT_HOME}/sysele
+    ln -sf ${SYSELE_DIR}/bin/demo ${D}${SYSELE_ROOT_HOME}/demo
 }
 
 FILES:${PN} += " \
@@ -148,6 +155,7 @@ FILES:${PN} += " \
     ${sysconfdir}/profile.d/sysele-motd.sh \
     ${sysconfdir}/profile.d/sysele-path.sh \
     ${SYSELE_ROOT_HOME}/sysele \
+    ${SYSELE_ROOT_HOME}/demo \
 "
 
 # NOTE, open point for review: METADATA_REVISION is the revision of poky, not
