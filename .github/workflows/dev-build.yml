@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch o commit da compilare. Vuoto = il branch da cui lanci."
+        description: "Branch or commit to build using master's shared cache. Leave empty to build the branch selected above with its own cache."
         type: string
         required: false
         default: ''
