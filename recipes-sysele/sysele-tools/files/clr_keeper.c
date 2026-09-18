@@ -1,4 +1,5 @@
-// T11 Prova 1: azzeramento continuo di VID_MODE_STS_CLR mentre VID_EN e' basso.
+// Azzera VID_MODE_STS_CLR di continuo mentre VID_EN e' basso, per stabilire se
+// sono i flag vecchi a impedire al generatore di ripartire.
 // Uso: clr_keeper <modo: 1 azzera, 0 osserva soltanto> <timeout_s>
 //
 // Base DSI 0x7c018000. Attende una discesa di VID_EN (MCTL_MAIN_DATA_CTL bit 5).

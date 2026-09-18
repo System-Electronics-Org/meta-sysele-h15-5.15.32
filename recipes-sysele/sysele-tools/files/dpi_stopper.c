@@ -1,4 +1,5 @@
-// T12 Prova 2: ferma il DPI alla discesa di VID_EN, azzerando il bit 23 di DPM_1.
+// Ferma il DPI alla discesa di VID_EN azzerando il bit 23 di DPM_1, per stabilire
+// se il generatore riparte pulito quando il DPI smette di scansionare.
 // Uso: dpi_stopper <modo: 1 ferma, 0 osserva soltanto> <timeout_s>
 //
 // Basi: DSI 0x7c018000, DPI 0x7c019000.

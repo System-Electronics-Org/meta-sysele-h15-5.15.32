@@ -1,11 +1,11 @@
 #!/bin/sh
 # Stato del generatore video del DSI (VSG) e riavvio di VID_EN.
-# Uso: ./vsg.sh          solo lettura
-#      ./vsg.sh fix      spegne VID_EN, attende 100 ms, lo riaccende, rilegge
-#      ./vsg.sh rec N    imposta RECOVERY_MODE in VID_MAIN_CTL e rilegge
-#                        (0 hsync successiva, default del driver; 2 stop point;
-#                        3 vsync successiva). Il bridge_enable lo riscrive a
-#                        ogni modeset.
+# Uso: dsi_status          solo lettura
+#      dsi_status fix      spegne VID_EN, attende 100 ms, lo riaccende, rilegge
+#      dsi_status rec N    imposta RECOVERY_MODE in VID_MAIN_CTL e rilegge
+#                          (0 hsync successiva, default del driver; 2 stop point;
+#                          3 vsync successiva). Il bridge_enable lo riscrive a
+#                          ogni modeset.
 rd() { devmem $1 32; }
 hist() {
   i=0
@@ -20,6 +20,11 @@ show() {
   echo "  VID_MODE_STS: $(hist 50 0x7c0180f0)"
   echo "  LANE_STS:     $(hist 50 0x7c01802c)"
 }
+
+usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
+case "$1" in
+-h|--help) usage; exit 0 ;;
+esac
 
 echo "--- stato"
 show
