@@ -1,12 +1,18 @@
 #!/bin/sh
 # Sceglie il device tree e gli overlay che userà il prossimo avvio.
-# Uso: sysele-config [show]        cosa è selezionato adesso
-#      sysele-config list          cosa è disponibile in questa build
-#      sysele-config set NOME      sceglie un albero base o accende un overlay
-#      sysele-config unset NOME    spegne un overlay
-#      sysele-config clear         torna alla configurazione di fabbrica
-#      sysele-config menu          installa le voci di ripristino nel bootmenu
+#
+# Uso: sysele-config              cosa è acceso adesso
+#      sysele-config menu         cosa si può accendere in questa build
+#      sysele-config set NOME     accende un overlay, o sceglie un albero base
+#      sysele-config unset NOME   spegne un overlay
+#      sysele-config clear        torna alla configurazione di fabbrica
+#      sysele-config list         come senza argomenti
+#      sysele-config recovery     rimette le voci di ripristino nel bootmenu
+#      sysele-config help         questo testo
+#
 # Scrive l'ambiente U-Boot: ha effetto dal riavvio successivo, non subito.
+# Chi cambia la selezione si ritrova anche le voci di ripristino nel bootmenu,
+# installate la prima volta che servono.
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 
 SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
@@ -42,16 +48,19 @@ active() {
     esac
 }
 
-# La rete del bootmenu non si installa da sola: scriverebbe nell'ambiente cose
-# che nessuno ha chiesto. Ma il momento in cui serve saperlo e' quello in cui si
-# cambia la selezione, non quello in cui la scheda non parte piu'.
-menu_hint() {
-    fw_printenv 2>/dev/null | grep -q "^bootmenu_[0-9]*=$MENU_TAG" && return 0
-    echo "  Se questa scelta non dovesse bootare, si torna indietro solo da seriale."
-    echo "  Per avere le voci di ripristino nel bootmenu: sysele-config menu"
+# Le voci di ripristino si installano da sole la prima volta che qualcuno
+# cambia la selezione: e' il momento in cui nasce il rischio, e chi cambia la
+# selezione sta gia' scrivendo nell'ambiente, quindi non e' un'azione di natura
+# diversa da quella che ha chiesto. Se ci sono gia', non si tocca niente.
+recovery_installed() { fw_printenv 2>/dev/null | grep -q "^bootmenu_[0-9]*=$MENU_TAG"; }
+
+ensure_recovery() {
+    recovery_installed && return 0
+    echo "  installo anche le voci di ripristino nel bootmenu, per tornare indietro da seriale"
+    cmd_recovery | sed 's/^/  /'
 }
 
-cmd_show() {
+cmd_list() {
     base=$(get board_dtb)
     [ -n "$base" ] || base=$(default_base)
     lbl=$(label_of "$base" 2>/dev/null) || lbl="sconosciuto in questa build"
@@ -84,7 +93,7 @@ cmd_show() {
     echo
 }
 
-cmd_list() {
+cmd_menu() {
     echo
     echo "  Alberi base, uno solo alla volta, con: sysele-config set NOME"
     awk -F'\t' '$1 ~ /^base/ { printf "    %-22s %s%s\n", $2, $4, ($1 == "base-default" ? "  [di fabbrica]" : "") }' "$LIST"
@@ -92,20 +101,20 @@ cmd_list() {
     echo "  Overlay, si sommano, con: sysele-config set NOME"
     awk -F'\t' '$1 == "overlay" { printf "    %-22s %s\n", $2, $4 }' "$LIST"
     echo
-    echo "  Selezione attuale: sysele-config show"
+    echo "  Cosa e' acceso adesso: sysele-config"
     echo
 }
 
 cmd_set() {
     n=$1
-    [ -n "$n" ] || die "set vuole un nome. Vedi: sysele-config list"
-    known "$n" || die "nome sconosciuto: $n. Vedi: sysele-config list"
+    [ -n "$n" ] || die "set vuole un nome. Vedi: sysele-config menu"
+    known "$n" || die "nome sconosciuto: $n. Vedi: sysele-config menu"
     conf=$(conf_of "$n")
     case "$(type_of "$n")" in
         base*)
             fw_setenv board_dtb "$n" || die "fw_setenv non è riuscito a scrivere"
             echo "albero base: $n. Riavvia per applicarlo."
-            menu_hint
+            ensure_recovery
             ;;
         overlay)
             if active "$conf"; then
@@ -114,15 +123,15 @@ cmd_set() {
             fi
             fw_setenv dtb_overlays "$(overlays_now)$conf" || die "fw_setenv non è riuscito a scrivere"
             echo "overlay acceso: $n. Riavvia per applicarlo."
-            menu_hint
+            ensure_recovery
             ;;
     esac
 }
 
 cmd_unset() {
     n=$1
-    [ -n "$n" ] || die "unset vuole un nome. Vedi: sysele-config show"
-    known "$n" || die "nome sconosciuto: $n. Vedi: sysele-config list"
+    [ -n "$n" ] || die "unset vuole un nome. Vedi: sysele-config"
+    known "$n" || die "nome sconosciuto: $n. Vedi: sysele-config menu"
     [ "$(type_of "$n")" = "overlay" ] || die "$n è un albero base: si cambia con set, non si spegne"
     conf=$(conf_of "$n")
     active "$conf" || { echo "$n non era acceso, niente da fare."; return 0; }
@@ -133,7 +142,7 @@ cmd_unset() {
         fw_setenv dtb_overlays "$new" || die "fw_setenv non è riuscito a scrivere"
     fi
     echo "overlay spento: $n. Riavvia per applicarlo."
-    menu_hint
+    ensure_recovery
 }
 
 cmd_clear() {
@@ -142,13 +151,13 @@ cmd_clear() {
     # Uno spazio, non vuoto: è il valore che l'ambiente di serie tiene qui.
     fw_setenv dtb_overlays ' ' || die "fw_setenv non è riuscito a scrivere"
     echo "configurazione di fabbrica: $d, nessun overlay. Riavvia per applicarla."
-    menu_hint
+    ensure_recovery
 }
 
 # Le voci del bootmenu sono variabili d'ambiente come le altre, quindi questa
 # rete si stende senza ricostruire U-Boot. Serve quando la scheda non arriva
 # più a Linux e l'unico modo di rimettere a posto la scelta è la seriale.
-cmd_menu() {
+cmd_recovery() {
     for v in $(fw_printenv 2>/dev/null | sed -n "s/^\(bootmenu_[0-9]*\)=$MENU_TAG.*/\1/p"); do
         fw_setenv "$v"
     done
@@ -182,13 +191,13 @@ cmd_menu() {
     echo "Si raggiungono dalla seriale fermando l'avvio e battendo: bootmenu"
 }
 
-case "${1:-show}" in
-    -h|--help) usage ;;
-    show)  cmd_show ;;
-    list)  cmd_list ;;
-    set)   cmd_set "$2" ;;
-    unset) cmd_unset "$2" ;;
-    clear) cmd_clear ;;
-    menu)  cmd_menu ;;
-    *) die "comando sconosciuto: $1. Vedi: sysele-config -h" ;;
+case "${1:-list}" in
+    -h|--help|help) usage ;;
+    list|show) cmd_list; echo "  Cosa si puo' accendere: sysele-config menu     Aiuto: sysele-config help"; echo ;;
+    menu)      cmd_menu ;;
+    set)       cmd_set "$2" ;;
+    unset)     cmd_unset "$2" ;;
+    clear)     cmd_clear ;;
+    recovery)  cmd_recovery ;;
+    *) die "comando sconosciuto: $1. Vedi: sysele-config help" ;;
 esac
