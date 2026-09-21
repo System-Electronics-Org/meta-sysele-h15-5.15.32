@@ -6,6 +6,11 @@ reach the shell through the PATH snippet and the symlinks in ${bindir}."
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
 
+# The recovery entries are installed on the first boot by an init script.
+inherit update-rc.d
+INITSCRIPT_NAME = "sysele-recovery"
+INITSCRIPT_PARAMS = "start 99 2 3 4 5 ."
+
 SRC_URI = " \
     file://sysele-motd.sh \
     file://sysele-path.sh \
@@ -13,6 +18,7 @@ SRC_URI = " \
     file://sysele-config \
     file://dsi_demo \
     file://camera_ae.conf \
+    file://sysele-recovery.init \
     file://dsi_status \
     file://dsi_stream \
     file://dsi_config \
@@ -89,7 +95,7 @@ SYSELE_EOF
 
     install -m 0755 ${WORKDIR}/sysele-info ${D}${SYSELE_DIR}/bin/sysele-info
 
-    # Le manopole della demo stanno in etc, dove sta tutto cio' che si modifica.
+    # The demo knobs live in etc, where everything editable lives.
     install -m 0644 ${WORKDIR}/camera_ae.conf ${D}${SYSELE_DIR}/etc/camera_ae.conf
 
     # What sysele-config is allowed to select, derived from the same variable
@@ -133,6 +139,13 @@ SYSELE_EOF
         install -m 0644 ${WORKDIR}/$t.c ${D}${SYSELE_DIR}/src/$t.c
     done
 
+    # The bootmenu recovery entries belong in the U-Boot default environment,
+    # which means rebuilding and signing U-Boot and reprogramming the SPI-NOR.
+    # Until that is done this init script writes them into the saved environment
+    # on the first boot, once, in a single environment transaction.
+    install -d ${D}${sysconfdir}/init.d
+    install -m 0755 ${WORKDIR}/sysele-recovery.init ${D}${sysconfdir}/init.d/sysele-recovery
+
     # Two ways in, on purpose. The profile.d snippet serves the login shells,
     # the symlinks serve everything else: a non interactive ssh command, a
     # systemd unit and a script never read profile.d, and typing the full path
@@ -154,6 +167,7 @@ SYSELE_EOF
 
 FILES:${PN} += " \
     ${SYSELE_DIR} \
+    ${sysconfdir}/init.d/sysele-recovery \
     ${sysconfdir}/profile.d/sysele-motd.sh \
     ${sysconfdir}/profile.d/sysele-path.sh \
     ${SYSELE_ROOT_HOME}/sysele \
