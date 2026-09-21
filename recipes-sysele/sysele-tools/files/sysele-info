@@ -20,7 +20,7 @@ describe() {
     esac
 }
 
-echo "  Comandi, nel PATH"
+echo "  commands, on the PATH"
 for t in "$SYSELE_DIR"/bin/*; do
     [ -x "$t" ] || continue
     n=$(basename "$t")
@@ -30,7 +30,7 @@ done
 
 if [ -d "$SYSELE_DIR/diagnostics" ]; then
     echo
-    echo "  Strumenti di misura, fuori dal PATH, in $SYSELE_DIR/diagnostics"
+    echo "  instruments, off the PATH, in $SYSELE_DIR/diagnostics"
     printf "   "
     for t in "$SYSELE_DIR"/diagnostics/*; do
         [ -x "$t" ] && printf " %s" "$(basename "$t")"
@@ -39,5 +39,5 @@ if [ -d "$SYSELE_DIR/diagnostics" ]; then
 fi
 
 echo
-echo "  Sorgenti in $SYSELE_DIR/src, configurazione in $SYSELE_DIR/etc, file generati in $SYSELE_DIR/var"
+echo "  sources in $SYSELE_DIR/src, configuration in $SYSELE_DIR/etc, generated files in $SYSELE_DIR/var"
 echo

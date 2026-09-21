@@ -1,10 +1,10 @@
-// Misura il periodo di frame del generatore video DSI (cdns-dsi, 7c018000)
-// dagli impulsi di fine frame: VSG_RUNNING (VID_MODE_STS bit 0) cade a 0 per
-// circa 0,3 ms a ogni frame. Campionamento continuo, senza pause.
-// Uso: vsg_period <secondi>
-// Stampa il periodo stimato con una retta ai minimi quadrati sui fronti di
-// discesa, e lo confronta con il periodo del DPI (600 MHz / 10 000 000 cicli)
-// e con quello del modo del pannello (1496 x 928 su 83 333 kHz).
+// Measure the frame period of the DSI video stream generator (cdns-dsi,
+// 7c018000) from the end of frame pulses: VSG_RUNNING (VID_MODE_STS bit 0)
+// drops to 0 for about 0.3 ms on every frame. Continuous sampling, no pauses.
+// Usage: vsg_period <seconds>
+// Prints the period estimated with a least squares fit on the falling edges,
+// and compares it with the DPI period (600 MHz / 10 000 000 cycles) and with
+// the panel mode period (1496 x 928 at 83 333 kHz).
 #include <fcntl.h>
 #include <math.h>
 #include <stdint.h>
@@ -39,7 +39,7 @@ int main(int argc, char **argv)
 	int prev = r[VID_STS / 4] & 1;
 
 	if (!prev) {
-		printf("VSG fermo: niente da misurare, lancia prima vsg.sh fix\n");
+		printf("VSG stopped: nothing to measure, run dsi_status fix first\n");
 		return 1;
 	}
 	for (double t = t0; t < end; t = now_s()) {
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 				k = 0;
 			} else {
 				// indice del frame dall'intervallo col fronte precedente: un
-				// errore di fase accumulato non fa sbagliare il conteggio
+				// accumulated phase error does not throw the count off
 				long step = lround((t - t_prev) / (DPI_PERIOD));
 				if (step == 0) {
 					dup++;
@@ -68,18 +68,18 @@ int main(int argc, char **argv)
 	}
 
 	if (n < 10) {
-		printf("solo %ld fronti in %.1f s: il VSG si e' fermato?\n", n, dur);
+		printf("only %ld edges in %.1f s: has the VSG stopped?\n", n, dur);
 		return 1;
 	}
 	double slope = (n * skt - sk * st) / (n * skk - sk * sk);
 	long prev_k = k;
 
-	printf("campioni %ld in %.1f s, fronti %ld, frame coperti %ld, fronti doppi %ld\n",
+	printf("samples %ld in %.1f s, edges %ld, frames covered %ld, double edges %ld\n",
 	       samples, now_s() - t0, n, prev_k + 1, dup);
-	printf("periodo misurato  %.6f ms  (%.5f Hz)\n", slope * 1e3, 1.0 / slope);
-	printf("periodo DPI       %.6f ms  (60.00000 Hz)   scarto %+.1f ppm\n",
+	printf("measured period   %.6f ms  (%.5f Hz)\n", slope * 1e3, 1.0 / slope);
+	printf("DPI period        %.6f ms  (60.00000 Hz)   offset %+.1f ppm\n",
 	       (DPI_PERIOD) * 1e3, (slope / (DPI_PERIOD) - 1) * 1e6);
-	printf("periodo del modo  %.6f ms  (%.5f Hz)   scarto %+.1f ppm\n",
+	printf("mode period       %.6f ms  (%.5f Hz)   offset %+.1f ppm\n",
 	       (MODE_PERIOD) * 1e3, 1.0 / (MODE_PERIOD), (slope / (MODE_PERIOD) - 1) * 1e6);
 	return 0;
 }

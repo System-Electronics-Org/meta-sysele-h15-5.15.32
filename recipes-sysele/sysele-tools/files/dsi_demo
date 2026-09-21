@@ -1,7 +1,7 @@
 #!/bin/sh
-# Avvia la demo sul pannello DSI: camera, auto-esposizione, video a schermo.
-# Uso: dsi_demo [secondi]    senza argomenti gira finche' non lo fermi
-# Le manopole stanno in etc/camera_ae.conf, dentro /opt/sysele.
+# Start the demo on the DSI panel: camera, auto exposure, video on screen.
+# Usage: dsi_demo [seconds]    with no argument it runs until stopped
+# The knobs are in etc/camera_ae.conf, under /opt/sysele.
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 case "$1" in -h|--help|help) usage; exit 0 ;; esac
 
@@ -15,43 +15,43 @@ AE_MODE=native; AE_FIXED_US=10000; FLICKER=0
 [ -r "$CONF" ] && . "$CONF"
 say() { echo "dsi_demo: $*"; }
 
-# Il sensore e la sua bus si leggono dal nome del subdev, non si danno per
-# scontati: la numerazione i2c e' gia' cambiata una volta.
+# The sensor and its bus are read from the subdev name, never assumed: the i2c
+# numbering has already changed once.
 SENSOR=""; for n in /sys/class/video4linux/v4l-subdev*; do
     case "$(cat "$n/name" 2>/dev/null)" in
         imx678*) SENSOR=$(cat "$n/name"); SUBDEV="/dev/$(basename "$n")" ;;
     esac
 done
-[ -n "$SENSOR" ] || { say "nessun sensore imx678: non parto"; exit 1; }
+[ -n "$SENSOR" ] || { say "no imx678 sensor found, not starting"; exit 1; }
 BUS=$(echo "$SENSOR" | sed -n 's/.* \([0-9]*\)-00[0-9a-f]*$/\1/p')
 ISP=""; for n in /sys/class/video4linux/v4l-subdev*; do
     case "$(cat "$n/name" 2>/dev/null)" in hailo-isp*) ISP="/dev/$(basename "$n")" ;; esac
 done
 
-# 1. la guardia sulla bus. Il guasto e' invisibile: l'auto-esposizione scrive su
-# una bus vuota, nessuno protesta e l'immagine brucia. Scrittura atomica, e se la
-# riga e' gia' giusta non si scrive niente.
+# 1. the bus guard. This failure is invisible: the auto exposure writes to an
+# empty bus, nobody complains and the image burns out. Atomic write, and nothing
+# is written when the line is already right.
 CFG=/usr/bin/Sensor$(awk -F'"' '/"sensor_id"/ { gsub(/[^0-9]/, "", $4); print $4; exit }' "$JSON" 2>/dev/null | grep -E '^[0-9]+$' || echo 1)_Entry.cfg
 [ -f "$CFG" ] || CFG=/usr/bin/Sensor1_Entry.cfg
 CUR=$(sed -n 's/^sensor_i2c_bus *= *\([0-9]*\).*/\1/p' "$CFG")
 if [ "$CUR" != "$BUS" ]; then
-    say "$(basename "$CFG") indica la bus $CUR, il sensore e' sulla $BUS: correggo"
+    say "$(basename "$CFG") says bus $CUR, the sensor is on bus $BUS: fixing it"
     sed "s|^sensor_i2c_bus *=.*|sensor_i2c_bus = $BUS|" "$CFG" > "$CFG.new" && mv "$CFG.new" "$CFG"
 fi
 
-# 2. le manopole. Lo sfarfallio si scrive nella 3A solo se cambia davvero.
+# 2. the knobs. Flicker goes into the 3A config only when it really changes.
 if [ -w "$AAA" ]; then
     FCUR=$(sed -n 's/.*"flickerPeriod" *: *\([0-9]*\).*/\1/p' "$AAA" | head -1)
     if [ "$FCUR" != "$FLICKER" ]; then
-        say "sfarfallio: da $FCUR a $FLICKER"
+        say "flicker: $FCUR to $FLICKER"
         sed "s|\"flickerPeriod\" *: *[0-9]*|\"flickerPeriod\" : $FLICKER|" "$AAA" > "$AAA.new" && mv "$AAA.new" "$AAA"
     fi
 fi
 
-[ -f "$JSON" ] || { say "manca $JSON, lancia dsi_config"; exit 1; }
-say "sensore su i2c-$BUS, modo $AE_MODE, sfarfallio $FLICKER, sorgente $JSON"
+[ -f "$JSON" ] || { say "$JSON is missing, run dsi_config"; exit 1; }
+say "sensor on i2c-$BUS, mode $AE_MODE, flicker $FLICKER, source $JSON"
 
-# 3. la pipeline.
+# 3. the pipeline.
 if [ -n "$DUR" ]; then T="timeout -k 5 -s INT $DUR"; else T=""; fi
 $T gst-launch-1.0 hailofrontendbinsrc config-file-path=$JSON name=fe \
   fe.src_0 ! queue leaky=downstream max-size-buffers=5 ! videoconvert n-threads=4 ! \
@@ -61,22 +61,23 @@ $T gst-launch-1.0 hailofrontendbinsrc config-file-path=$JSON name=fe \
 G=$!
 
 if [ "$AE_MODE" = "fixed" ]; then
-    # L'ISP riaccende la sua auto-esposizione all'avvio, quindi si spegne dopo.
+    # The ISP turns its own auto exposure back on at start, so it is turned off
+    # afterwards.
     sleep 6
     VMAX=$(i2ctransfer -f -y "$BUS" w2@0x1a 0x30 0x28 r3 2>/dev/null | awk '{printf "%d", strtonum($3)*65536+strtonum($2)*256+strtonum($1)}')
     N=$(awk -v u="$AE_FIXED_US" 'BEGIN { printf "%d", u / 7.4074 + 0.5 }')
     v4l2-ctl -d "$ISP" --set-ctrl isp_ae_enable=0 >/dev/null 2>&1
-    # V4L2 non chiama il driver se il valore non cambia, e la sua copia e'
-    # disallineata perche' la libreria Hailo scrive i registri direttamente.
+    # V4L2 does not call the driver when the value does not change, and its copy
+    # is out of step because the Hailo library writes the registers directly.
     v4l2-ctl -d "$SUBDEV" --set-ctrl exposure=$((N + 1)) >/dev/null 2>&1
     v4l2-ctl -d "$SUBDEV" --set-ctrl exposure=$N >/dev/null 2>&1
     v4l2-ctl -d "$SUBDEV" --set-ctrl analogue_gain=0 >/dev/null 2>&1
     sleep 1
     SHR=$(i2ctransfer -f -y "$BUS" w2@0x1a 0x30 0x50 r3 2>/dev/null | awk '{printf "%d", strtonum($3)*65536+strtonum($2)*256+strtonum($1)}')
     if [ "$SHR" = "$((VMAX - N))" ]; then
-        say "esposizione fissa $AE_FIXED_US us, verificata sul sensore"
+        say "fixed exposure $AE_FIXED_US us, verified on the sensor"
     else
-        say "ATTENZIONE: l'esposizione fissa non ha preso, SHR0 $SHR invece di $((VMAX - N))"
+        say "WARNING: the fixed exposure did not take, SHR0 is $SHR instead of $((VMAX - N))"
     fi
 fi
 
