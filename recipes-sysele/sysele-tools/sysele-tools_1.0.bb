@@ -6,11 +6,19 @@ reach the shell through the PATH snippet and the symlinks in ${bindir}."
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
 
+# The recovery entries are installed on the first boot by an init script.
+inherit update-rc.d
+INITSCRIPT_NAME = "sysele-recovery"
+INITSCRIPT_PARAMS = "start 99 2 3 4 5 ."
+
 SRC_URI = " \
     file://sysele-motd.sh \
     file://sysele-path.sh \
     file://sysele-info \
     file://sysele-config \
+    file://dsi_demo \
+    file://camera_ae.conf \
+    file://sysele-recovery.init \
     file://dsi_status \
     file://dsi_stream \
     file://dsi_config \
@@ -31,7 +39,7 @@ SRC_URI = " \
 # write DSI and DPI registers through /dev/mem at full speed and can stop the
 # panel, so they stay in their own directory, out of the PATH, where they have to
 # be asked for by name.
-SYSELE_CMD_SH = "sysele-config dsi_status dsi_stream dsi_config reg_dump"
+SYSELE_CMD_SH = "dsi_demo sysele-config dsi_status dsi_stream dsi_config reg_dump"
 SYSELE_CMD_C = "dsi_trace"
 SYSELE_DIAG_C = "vsg_period vsg_watchdog clr_keeper dpi_stopper"
 
@@ -58,19 +66,23 @@ do_install() {
     # and claimed in FILES below, otherwise the recipe builds and installs
     # nothing.
     install -d ${D}${SYSELE_DIR}/bin
-    install -d ${D}${SYSELE_DIR}/diag
+    install -d ${D}${SYSELE_DIR}/diagnostics
     install -d ${D}${SYSELE_DIR}/src
 
-    # Generated files land here: the pipeline JSONs are built on the board from
-    # Hailo's vision config by dsi_config, so they cannot ship with the package.
+    # Three kinds of data, told apart by who writes them: share is what the
+    # build produces and nobody edits, etc is what somebody edits, var is what
+    # the board writes at runtime, like the pipeline JSONs that dsi_config
+    # builds from Hailo's vision config.
     install -d ${D}${SYSELE_DIR}/share
+    install -d ${D}${SYSELE_DIR}/etc
+    install -d ${D}${SYSELE_DIR}/var
 
     # DATETIME is YYYYMMDDhhmmss; make it readable. METADATA_REVISION is a full
     # SHA, 12 characters are enough to identify it.
     built=$(echo "${DATETIME}" | sed -E 's/(....)(..)(..)(..)(..)(..)/\1-\2-\3 \4:\5:\6/')
     poky_rev=$(echo "${METADATA_REVISION}" | cut -c1-12)
 
-    cat > ${D}${SYSELE_DIR}/build-info <<SYSELE_EOF
+    cat > ${D}${SYSELE_DIR}/share/build-info <<SYSELE_EOF
 
   Astrial H15 - System Electronics
 
@@ -82,6 +94,9 @@ do_install() {
 SYSELE_EOF
 
     install -m 0755 ${WORKDIR}/sysele-info ${D}${SYSELE_DIR}/bin/sysele-info
+
+    # The demo knobs live in etc, where everything editable lives.
+    install -m 0644 ${WORKDIR}/camera_ae.conf ${D}${SYSELE_DIR}/etc/camera_ae.conf
 
     # What sysele-config is allowed to select, derived from the same variable
     # that puts the trees in the FIT: a hand written list would drift from the
@@ -120,9 +135,16 @@ SYSELE_EOF
         install -m 0644 ${WORKDIR}/$t.c ${D}${SYSELE_DIR}/src/$t.c
     done
     for t in ${SYSELE_DIAG_C}; do
-        install -m 0755 ${B}/$t ${D}${SYSELE_DIR}/diag/$t
+        install -m 0755 ${B}/$t ${D}${SYSELE_DIR}/diagnostics/$t
         install -m 0644 ${WORKDIR}/$t.c ${D}${SYSELE_DIR}/src/$t.c
     done
+
+    # The bootmenu recovery entries belong in the U-Boot default environment,
+    # which means rebuilding and signing U-Boot and reprogramming the SPI-NOR.
+    # Until that is done this init script writes them into the saved environment
+    # on the first boot, once, in a single environment transaction.
+    install -d ${D}${sysconfdir}/init.d
+    install -m 0755 ${WORKDIR}/sysele-recovery.init ${D}${sysconfdir}/init.d/sysele-recovery
 
     # Two ways in, on purpose. The profile.d snippet serves the login shells,
     # the symlinks serve everything else: a non interactive ssh command, a
@@ -145,6 +167,7 @@ SYSELE_EOF
 
 FILES:${PN} += " \
     ${SYSELE_DIR} \
+    ${sysconfdir}/init.d/sysele-recovery \
     ${sysconfdir}/profile.d/sysele-motd.sh \
     ${sysconfdir}/profile.d/sysele-path.sh \
     ${SYSELE_ROOT_HOME}/sysele \

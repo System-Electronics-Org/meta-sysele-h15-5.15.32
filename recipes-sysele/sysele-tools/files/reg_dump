@@ -1,7 +1,7 @@
 #!/bin/sh
-# Dump di un blocco di registri a 32 bit, un registro per riga.
-# Uso: reg_dump <base esadecimale> <numero registri> <file>
-# Esempio: reg_dump 0x7c018000 128 /tmp/dsi.txt
+# Dump a block of 32 bit registers, one register per line.
+# Usage: reg_dump <hex base> <register count> <output file>
+# Example: reg_dump 0x7c018000 128 /tmp/dsi.txt
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 case "$1" in
 -h|--help|"") usage; exit 0 ;;
@@ -11,6 +11,6 @@ b=$1; n=$2; out=$3; i=0
 while [ $i -lt $n ]; do
   o=$((i*4))
   v=$(devmem $((b + o)) 32 2>&1 | tr "\n" " ")
-  printf "+0x%03x %s\n" $o "${v:-VUOTO}" >> $out
+  printf "+0x%03x %s\n" $o "${v:-EMPTY}" >> $out
   i=$((i+1))
 done

@@ -1,18 +1,21 @@
 #!/bin/sh
-# Sceglie il device tree e gli overlay che userà il prossimo avvio.
+# Select the device tree and the overlays the next boot will use.
 #
-# Uso: sysele-config              cosa è acceso adesso
-#      sysele-config menu         cosa si può accendere in questa build
-#      sysele-config set NOME     accende un overlay, o sceglie un albero base
-#      sysele-config unset NOME   spegne un overlay
-#      sysele-config clear        torna alla configurazione di fabbrica
-#      sysele-config list         come senza argomenti
-#      sysele-config recovery     rimette le voci di ripristino nel bootmenu
-#      sysele-config help         questo testo
+# Usage: sysele-config              what is enabled now
+#        sysele-config menu         what this build can enable
+#        sysele-config set NAME     select a base tree, one at a time
+#        sysele-config add NAME     enable an overlay
+#        sysele-config remove NAME  disable an overlay
+#        sysele-config clear        restore the factory selection
+#        sysele-config list         same as no argument
+#        sysele-config recovery     reinstall the bootmenu recovery entries
+#        sysele-config help         this text
 #
-# Scrive l'ambiente U-Boot: ha effetto dal riavvio successivo, non subito.
-# Chi cambia la selezione si ritrova anche le voci di ripristino nel bootmenu,
-# installate la prima volta che servono.
+# Writes the U-Boot environment: it applies from the next boot, not now.
+#
+# Recovery entries are installed in the bootmenu at first boot, so a selection
+# that does not reach Linux can be undone from the serial console: stop the
+# board before it boots and type bootmenu.
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 
 SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
@@ -21,14 +24,14 @@ MENU_TAG="Sysele:"
 
 die() { echo "sysele-config: $*" >&2; exit 1; }
 
-[ -r "$LIST" ] || die "manca $LIST: il pacchetto non è installato per intero"
-command -v fw_printenv >/dev/null 2>&1 || die "manca fw_printenv"
-command -v fw_setenv   >/dev/null 2>&1 || die "manca fw_setenv"
+[ -r "$LIST" ] || die "$LIST is missing: the package is not fully installed"
+command -v fw_printenv >/dev/null 2>&1 || die "fw_printenv is missing"
+command -v fw_setenv   >/dev/null 2>&1 || die "fw_setenv is missing"
 
 get() { fw_printenv -n "$1" 2>/dev/null; }
 
-# Il file è: tipo <tab> nome <tab> stringa conf <tab> etichetta.
-# I tipi sono base, base-default e overlay.
+# The list is: type <tab> name <tab> conf string <tab> label.
+# Types are base, base-default and overlay.
 col() { awk -F'\t' -v n="$2" -v c="$3" '$2 == n { print $c; f = 1 } END { exit !f }' "$LIST"; }
 type_of()  { col x "$1" 1; }
 conf_of()  { col x "$1" 3; }
@@ -37,8 +40,8 @@ default_base() { awk -F'\t' '$1 == "base-default" { print $2; exit }' "$LIST"; }
 
 known() { awk -F'\t' -v n="$1" '$2 == n { f = 1 } END { exit !f }' "$LIST"; }
 
-# Gli overlay si concatenano senza separatore: lo spazio che l'ambiente di
-# serie tiene in dtb_overlays spezzerebbe l'argomento di bootm in due.
+# Overlays concatenate with no separator: the space the stock environment keeps
+# in dtb_overlays would split the bootm argument in two.
 overlays_now() { get dtb_overlays | tr -d ' \t'; }
 
 active() {
@@ -48,156 +51,180 @@ active() {
     esac
 }
 
-# Le voci di ripristino si installano da sole la prima volta che qualcuno
-# cambia la selezione: e' il momento in cui nasce il rischio, e chi cambia la
-# selezione sta gia' scrivendo nell'ambiente, quindi non e' un'azione di natura
-# diversa da quella che ha chiesto. Se ci sono gia', non si tocca niente.
-recovery_installed() { fw_printenv 2>/dev/null | grep -q "^bootmenu_[0-9]*=$MENU_TAG"; }
-
-ensure_recovery() {
-    recovery_installed && return 0
-    echo "  installo anche le voci di ripristino nel bootmenu, per tornare indietro da seriale"
-    cmd_recovery | sed 's/^/  /'
-}
+row() { printf '%-15s %s\n' "$1" "$2"; }
+entry() { printf '%-15s %-22s %s\n' "$1" "$2" "$3"; }
 
 cmd_list() {
     base=$(get board_dtb)
     [ -n "$base" ] || base=$(default_base)
-    lbl=$(label_of "$base" 2>/dev/null) || lbl="sconosciuto in questa build"
+    lbl=$(label_of "$base" 2>/dev/null) || lbl="not in this build"
 
     echo
-    echo "  Albero base     $base"
-    echo "                  $lbl"
+    entry "base tree" "$base" "$lbl"
 
     ov=$(overlays_now)
     if [ -z "$ov" ]; then
-        echo "  Overlay         nessuno"
+        row "overlays" "none"
     else
-        echo "  Overlay"
-        awk -F'\t' '$1 == "overlay" { print $2 "\t" $3 "\t" $4 }' "$LIST" | while IFS="$(printf '\t')" read -r n c l; do
-            case "$ov" in *"$c"*) printf "                  %-22s %s\n" "$n" "$l" ;; esac
+        first=overlays
+        awk -F'\t' '$1 == "overlay" { print $2 "\t" $3 "\t" $4 }' "$LIST" |
+        while IFS="$(printf '\t')" read -r n c l; do
+            case "$ov" in
+                *"$c"*) entry "$first" "$n" "$l"; first="" ;;
+            esac
         done
-        # Un overlay che non è in questa build resta comunque nella stringa.
+        # An overlay that is not in this build still sits in the string.
         echo "$ov" | tr '#' '\n' | sed '/^$/d' | while read -r c; do
-            grep -q "#$c\$" "$LIST" || grep -q "	#$c	" "$LIST" || \
-                printf "                  %-22s NON presente in questa build\n" "#$c"
+            grep -q "	#$c	" "$LIST" || entry "" "#$c" "not in this build"
         done
     fi
 
-    opts=$(get bootargs_board_options)
-    echo "  Opzioni kernel  ${opts:-nessuna}"
+    row "kernel options" "$(get bootargs_board_options || echo none)"
 
     bconf=$(conf_of "$base" 2>/dev/null) || bconf="conf-?_$base.dtb"
     echo
-    echo "  Al prossimo avvio: bootm \${indirizzo}${bconf}${ov}"
+    row "next boot" "bootm \${fitimage_ram_addr}#${bconf}${ov}"
+    echo
+    row "list options" "sysele-config menu"
+    row "help" "sysele-config help"
     echo
 }
 
 cmd_menu() {
     echo
-    echo "  Alberi base, uno solo alla volta, con: sysele-config set NOME"
-    awk -F'\t' '$1 ~ /^base/ { printf "    %-22s %s%s\n", $2, $4, ($1 == "base-default" ? "  [di fabbrica]" : "") }' "$LIST"
+    echo "available trees, one at a time, with: sysele-config set NAME"
+    awk -F'\t' '$1 ~ /^base/ { printf "  %-22s %s%s\n", $2, $4, ($1 == "base-default" ? "   [default]" : "") }' "$LIST"
     echo
-    echo "  Overlay, si sommano, con: sysele-config set NOME"
-    awk -F'\t' '$1 == "overlay" { printf "    %-22s %s\n", $2, $4 }' "$LIST"
+    echo "available overlays, stackable, with: sysele-config add NAME"
+    awk -F'\t' '$1 == "overlay" { printf "  %-22s %s\n", $2, $4 }' "$LIST"
     echo
-    echo "  Cosa e' acceso adesso: sysele-config"
+    echo "currently enabled: sysele-config"
     echo
 }
 
 cmd_set() {
     n=$1
-    [ -n "$n" ] || die "set vuole un nome. Vedi: sysele-config menu"
-    known "$n" || die "nome sconosciuto: $n. Vedi: sysele-config menu"
-    conf=$(conf_of "$n")
+    [ -n "$n" ] || die "set needs a name. See: sysele-config menu"
+    known "$n" || die "unknown name: $n. See: sysele-config menu"
     case "$(type_of "$n")" in
-        base*)
-            fw_setenv board_dtb "$n" || die "fw_setenv non è riuscito a scrivere"
-            echo "albero base: $n. Riavvia per applicarlo."
-            ensure_recovery
-            ;;
-        overlay)
-            if active "$conf"; then
-                echo "$n era già acceso, niente da fare."
-                return 0
-            fi
-            fw_setenv dtb_overlays "$(overlays_now)$conf" || die "fw_setenv non è riuscito a scrivere"
-            echo "overlay acceso: $n. Riavvia per applicarlo."
-            ensure_recovery
-            ;;
+        base*) ;;
+        *) die "$n is an overlay, use: sysele-config add $n" ;;
     esac
+    fw_setenv board_dtb "$n" || die "fw_setenv failed to write"
+    echo "base tree: $n. Reboot to apply."
 }
 
-cmd_unset() {
+cmd_add() {
     n=$1
-    [ -n "$n" ] || die "unset vuole un nome. Vedi: sysele-config"
-    known "$n" || die "nome sconosciuto: $n. Vedi: sysele-config menu"
-    [ "$(type_of "$n")" = "overlay" ] || die "$n è un albero base: si cambia con set, non si spegne"
+    [ -n "$n" ] || die "add needs a name. See: sysele-config menu"
+    known "$n" || die "unknown name: $n. See: sysele-config menu"
+    [ "$(type_of "$n")" = "overlay" ] || die "$n is a base tree, use: sysele-config set $n"
     conf=$(conf_of "$n")
-    active "$conf" || { echo "$n non era acceso, niente da fare."; return 0; }
+    active "$conf" && { echo "$n is already enabled."; return 0; }
+    fw_setenv dtb_overlays "$(overlays_now)$conf" || die "fw_setenv failed to write"
+    echo "overlay added: $n. Reboot to apply."
+}
+
+cmd_remove() {
+    n=$1
+    [ -n "$n" ] || die "remove needs a name. See: sysele-config"
+    known "$n" || die "unknown name: $n. See: sysele-config menu"
+    [ "$(type_of "$n")" = "overlay" ] || die "$n is a base tree: select another one with set, it cannot be removed"
+    conf=$(conf_of "$n")
+    active "$conf" || { echo "$n is not enabled."; return 0; }
     new=$(overlays_now | sed "s|$conf||")
-    if [ -z "$new" ]; then
-        fw_setenv dtb_overlays ' ' || die "fw_setenv non è riuscito a scrivere"
-    else
-        fw_setenv dtb_overlays "$new" || die "fw_setenv non è riuscito a scrivere"
-    fi
-    echo "overlay spento: $n. Riavvia per applicarlo."
-    ensure_recovery
+    # A space, not empty: it is what the stock environment keeps here.
+    [ -n "$new" ] || new=' '
+    fw_setenv dtb_overlays "$new" || die "fw_setenv failed to write"
+    echo "overlay removed: $n. Reboot to apply."
 }
 
 cmd_clear() {
     d=$(default_base)
-    fw_setenv board_dtb "$d" || die "fw_setenv non è riuscito a scrivere"
-    # Uno spazio, non vuoto: è il valore che l'ambiente di serie tiene qui.
-    fw_setenv dtb_overlays ' ' || die "fw_setenv non è riuscito a scrivere"
-    echo "configurazione di fabbrica: $d, nessun overlay. Riavvia per applicarla."
-    ensure_recovery
+    fw_setenv board_dtb "$d" || die "fw_setenv failed to write"
+    fw_setenv dtb_overlays ' ' || die "fw_setenv failed to write"
+    echo "factory selection: $d, no overlays. Reboot to apply."
 }
 
-# Le voci del bootmenu sono variabili d'ambiente come le altre, quindi questa
-# rete si stende senza ricostruire U-Boot. Serve quando la scheda non arriva
-# più a Linux e l'unico modo di rimettere a posto la scelta è la seriale.
+# Bootmenu entries are environment variables like any other, so this safety net
+# is laid without rebuilding U-Boot. It is what recovers a board that no longer
+# reaches Linux and can only be fixed from the serial console.
+#
+# Every change goes in through a single fw_setenv -s: one environment
+# transaction instead of one flash erase and write per entry. The script
+# syntax is libubootenv's, the fw_setenv this image ships: name=value, split
+# at the first '=', and an empty value deletes the variable.
 cmd_recovery() {
-    for v in $(fw_printenv 2>/dev/null | sed -n "s/^\(bootmenu_[0-9]*\)=$MENU_TAG.*/\1/p"); do
-        fw_setenv "$v"
+    env_now=$(fw_printenv 2>/dev/null)
+
+    if [ "$1" = "--if-missing" ]; then
+        printf '%s\n' "$env_now" | grep -q "^bootmenu_[0-9]*=$MENU_TAG" && return 0
+    fi
+
+    # Bootmenu stops at the first missing index, so our entries go right after
+    # the vendor ones, with no gap. Reinstalling reuses the same indices.
+    first=0
+    while :; do
+        v=$(printf '%s\n' "$env_now" | sed -n "s/^bootmenu_$first=//p")
+        [ -n "$v" ] || break
+        case "$v" in "$MENU_TAG"*) break ;; esac
+        first=$((first + 1))
     done
 
-    # bootmenu si ferma al primo indice mancante: le nostre voci vanno in coda
-    # a quelle del fornitore, senza buchi.
-    i=0
-    while fw_printenv -n "bootmenu_$i" >/dev/null 2>&1; do i=$((i + 1)); done
-    first=$i
+    script=$(mktemp 2>/dev/null) || script=/tmp/sysele-recovery.$$
+    : > "$script" || die "cannot write $script"
 
+    i=$first
     d=$(default_base)
-    fw_setenv "bootmenu_$i" "$MENU_TAG configurazione di fabbrica=setenv board_dtb $d; setenv dtb_overlays ' '; saveenv; reset"
+    printf 'bootmenu_%s=%s factory selection=setenv board_dtb %s; setenv dtb_overlays '"'"' '"'"'; saveenv; reset\n' \
+        "$i" "$MENU_TAG" "$d" >> "$script"
     i=$((i + 1))
 
-    # Una voce per overlay: accende quello e spegne gli altri, che è il
-    # comportamento che serve quando si sta cercando di tornare a bootare.
+    # One entry per overlay: it enables that one and clears the others, which is
+    # the behaviour wanted by somebody trying to get back to a booting board.
     while IFS="$(printf '\t')" read -r t n c l; do
         [ "$t" = "overlay" ] || continue
-        fw_setenv "bootmenu_$i" "$MENU_TAG $l=setenv dtb_overlays '$c'; saveenv; reset"
+        printf 'bootmenu_%s=%s %s=setenv dtb_overlays '"'"'%s'"'"'; saveenv; reset\n' \
+            "$i" "$MENU_TAG" "$l" "$c" >> "$script"
         i=$((i + 1))
     done < "$LIST"
 
     while IFS="$(printf '\t')" read -r t n c l; do
         case "$t" in base*) ;; *) continue ;; esac
         [ "$n" = "$d" ] && continue
-        fw_setenv "bootmenu_$i" "$MENU_TAG $l=setenv board_dtb $n; setenv dtb_overlays ' '; saveenv; reset"
+        printf 'bootmenu_%s=%s %s=setenv board_dtb %s; setenv dtb_overlays '"'"' '"'"'; saveenv; reset\n' \
+            "$i" "$MENU_TAG" "$l" "$n" >> "$script"
         i=$((i + 1))
     done < "$LIST"
 
-    echo "installate $((i - first)) voci, da bootmenu_$first a bootmenu_$((i - 1))."
-    echo "Si raggiungono dalla seriale fermando l'avvio e battendo: bootmenu"
+    # A previous install may have left more entries than this build needs.
+    printf '%s\n' "$env_now" | sed -n 's/^bootmenu_\([0-9]*\)=.*/\1/p' |
+    while read -r idx; do
+        [ "$idx" -ge "$i" ] 2>/dev/null && printf 'bootmenu_%s=\n' "$idx" >> "$script"
+    done
+
+    # An older version of this tool wrote the entries in the other fw_setenv
+    # syntax, which libubootenv read as names with spaces in them. U-Boot never
+    # sees those; remove them.
+    printf '%s\n' "$env_now" | grep '^bootmenu_[0-9]* ' | cut -d= -f1 |
+    while IFS= read -r bad; do
+        printf '%s=\n' "$bad" >> "$script"
+    done
+
+    fw_setenv -s "$script" || { rm -f "$script"; die "fw_setenv failed to write the recovery entries"; }
+    rm -f "$script"
+    echo "recovery entries installed: bootmenu_$first to bootmenu_$((i - 1))."
+    echo "Reach them from the serial console: stop the board and type bootmenu"
 }
 
 case "${1:-list}" in
     -h|--help|help) usage ;;
-    list|show) cmd_list; echo "  Cosa si puo' accendere: sysele-config menu     Aiuto: sysele-config help"; echo ;;
+    list|show) cmd_list ;;
     menu)      cmd_menu ;;
     set)       cmd_set "$2" ;;
-    unset)     cmd_unset "$2" ;;
+    add)       cmd_add "$2" ;;
+    remove)    cmd_remove "$2" ;;
     clear)     cmd_clear ;;
-    recovery)  cmd_recovery ;;
-    *) die "comando sconosciuto: $1. Vedi: sysele-config help" ;;
+    recovery)  cmd_recovery "$2" ;;
+    *) die "unknown command: $1. See: sysele-config help" ;;
 esac

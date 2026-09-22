@@ -1,16 +1,16 @@
 #!/bin/sh
-# Crea i JSON della pipeline DSI partendo dalla vision config di Hailo.
-# Da rilanciare dopo un flash: i JSON sono generati, non fanno parte del pacchetto.
-# Uso: dsi_config
-# Sorgente in $SYSELE_VISION_CONFIG, destinazione in $SYSELE_SHARE.
+# Build the DSI pipeline JSONs from Hailo's vision config.
+# Run it again after a flash: the JSONs are generated, they are not packaged.
+# Usage: dsi_config
+# Source in $SYSELE_VISION_CONFIG, output in $SYSELE_VAR.
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 case "$1" in
 -h|--help) usage; exit 0 ;;
 esac
 S=${SYSELE_VISION_CONFIG:-/home/root/apps/webserver/resources/configs/vision_config1.json}
-OUT=${SYSELE_SHARE:-/opt/sysele/share}
-[ -f "$S" ] || { echo "manca $S"; exit 1; }
-mkdir -p "$OUT" || { echo "non riesco a scrivere in $OUT"; exit 1; }
+OUT=${SYSELE_VAR:-/opt/sysele/var}
+[ -f "$S" ] || { echo "dsi_config: $S is missing"; exit 1; }
+mkdir -p "$OUT" || { echo "dsi_config: cannot write into $OUT"; exit 1; }
 python3 - "$S" "$OUT" <<'PY'
 import json, sys
 c = json.load(open(sys.argv[1]))
@@ -21,5 +21,5 @@ out = sys.argv[2]
 json.dump(c, open(out + "/frontend_dsi_30.json", "w"), indent=4)
 s = json.dumps(c, indent=4).replace('"framerate": 30', '"framerate": 60')
 open(out + "/frontend_dsi_60.json", "w").write(s)
-print("creati " + out + "/frontend_dsi_30.json e " + out + "/frontend_dsi_60.json")
+print("written " + out + "/frontend_dsi_30.json and " + out + "/frontend_dsi_60.json")
 PY

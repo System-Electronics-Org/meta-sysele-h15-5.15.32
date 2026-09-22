@@ -1,15 +1,15 @@
-// Ferma il DPI alla discesa di VID_EN azzerando il bit 23 di DPM_1, per stabilire
-// se il generatore riparte pulito quando il DPI smette di scansionare.
-// Uso: dpi_stopper <modo: 1 ferma, 0 osserva soltanto> <timeout_s>
+// Stop the DPI on the falling edge of VID_EN by clearing bit 23 of DPM_1, to
+// establish whether the generator restarts clean once the DPI stops scanning.
+// Usage: dpi_stopper <mode: 1 stop, 0 observe only> <timeout_s>
 //
-// Basi: DSI 0x7c018000, DPI 0x7c019000.
-// Alla discesa di VID_EN (MCTL_MAIN_DATA_CTL bit 5), in modo 1 scrive subito
-// DPM_1 (DPI+0x0e4) con CFG_IS_CONTINUOUS_SCANOUT_MODE (bit 23) azzerato.
-// Poi, ogni 1 ms fino alla risalita, legge VID_MODE_STS (DSI+0x0f0). Non scrive
-// mai VID_MODE_STS_CLR. Alla risalita rilegge DPM_1: se il bit 23 e' ancora
-// zero lo rimette e riemette HA_STREAM_START (DPI+0x0f8) e GO_SCANOUT
-// (DPI+0x0f4), segnalandolo. Infine legge STS e FLAG a +5, +20, +50 e +100 ms.
-// Il modo 0 fa le stesse letture senza scrivere niente.
+// Bases: DSI 0x7c018000, DPI 0x7c019000.
+// On the falling edge of VID_EN (MCTL_MAIN_DATA_CTL bit 5), mode 1 writes DPM_1
+// (DPI+0x0e4) straight away with CFG_IS_CONTINUOUS_SCANOUT_MODE (bit 23) cleared.
+// Then, every 1 ms until the rising edge, it reads VID_MODE_STS (DSI+0x0f0). It
+// never writes VID_MODE_STS_CLR. On the rising edge it reads DPM_1 back: if bit
+// 23 is still zero it restores it and reissues HA_STREAM_START (DPI+0x0f8) and
+// GO_SCANOUT (DPI+0x0f4), reporting it. Finally it reads STS and FLAG at +5,
+// +20, +50 and +100 ms. Mode 0 does the same reads without writing anything.
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -68,8 +68,8 @@ int main(int argc, char **argv)
 	int prev_en = (dsi[DATA_CTL / 4] & VID_EN) != 0;
 	int err_seen = 0;
 
-	printf("[%.3f] dpi_stopper modo %d (%s), VID_EN ora %d, STS 0x%03x FLAG 0x%03x, DPM_1 0x%08x\n",
-	       t0, mode, mode ? "ferma il DPI" : "osserva", prev_en, dsi[VID_STS / 4],
+	printf("[%.3f] dpi_stopper mode %d (%s), VID_EN now %d, STS 0x%03x FLAG 0x%03x, DPM_1 0x%08x\n",
+	       t0, mode, mode ? "stop the DPI" : "observe", prev_en, dsi[VID_STS / 4],
 	       dsi[VID_FLAG / 4], dpi[DPM_1 / 4]);
 	fflush(stdout);
 
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 		int en = (d & VID_EN) != 0;
 		if (en && (s & ERR_BITS) && !err_seen) {
 			err_seen = 1;
-			printf("[%.3f] ATTENZIONE errore vivo con VID_EN alto prima della discesa: STS 0x%03x (uscita da scartare)\n",
+			printf("[%.3f] WARNING live error with VID_EN high before the falling edge: STS 0x%03x (discard this run)\n",
 			       now_s(), s);
 			fflush(stdout);
 		}
@@ -87,18 +87,18 @@ int main(int argc, char **argv)
 		prev_en = en;
 		nanosleep(&poll, NULL);
 	}
-	if (tf < 0) { printf("[%.3f] nessuna discesa entro il timeout\n", now_s()); return 2; }
+	if (tf < 0) { printf("[%.3f] no falling edge within the timeout\n", now_s()); return 2; }
 
-	uint32_t dpm1_prima = dpi[DPM_1 / 4];
+	uint32_t dpm1_before = dpi[DPM_1 / 4];
 	double tw = -1;
 	if (mode) {
-		dpi[DPM_1 / 4] = dpm1_prima & ~CONT_SCANOUT;
+		dpi[DPM_1 / 4] = dpm1_before & ~CONT_SCANOUT;
 		tw = now_s();
 	}
-	printf("[%.3f] DISCESA di VID_EN: STS 0x%03x FLAG 0x%03x DPM_1 0x%08x%s\n", tf,
-	       dsi[VID_STS / 4], dsi[VID_FLAG / 4], dpm1_prima, mode ? "" : " (nessuna scrittura)");
+	printf("[%.3f] VID_EN FELL: STS 0x%03x FLAG 0x%03x DPM_1 0x%08x%s\n", tf,
+	       dsi[VID_STS / 4], dsi[VID_FLAG / 4], dpm1_before, mode ? "" : " (no write)");
 	if (mode)
-		printf("         DPI fermato a +%.3f ms dalla discesa, DPM_1 ora 0x%08x\n",
+		printf("         DPI stopped at +%.3f ms from the falling edge, DPM_1 now 0x%08x\n",
 		       (tw - tf) * 1e3, dpi[DPM_1 / 4]);
 	fflush(stdout);
 
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
 	for (;;) {
 		double t = now_s();
 		if (dsi[DATA_CTL / 4] & VID_EN) { tr = t; break; }
-		if (t - tf > 30.0) { printf("[%.3f] VID_EN ancora basso dopo 30 s: esco\n", t); return 3; }
+		if (t - tf > 30.0) { printf("[%.3f] VID_EN still low after 30 s: giving up\n", t); return 3; }
 		uint32_t s = dsi[VID_STS / 4];
 		if (s & ERR_BITS)
 			t_last_err = t;
@@ -116,17 +116,17 @@ int main(int argc, char **argv)
 		sleep_until(tf + k * 0.001);
 	}
 
-	uint32_t dpm1_risalita = dpi[DPM_1 / 4];
-	int rimesso = 0;
-	if (!(dpm1_risalita & CONT_SCANOUT)) {
-		dpi[DPM_1 / 4] = dpm1_risalita | CONT_SCANOUT;
+	uint32_t dpm1_rise = dpi[DPM_1 / 4];
+	int restored = 0;
+	if (!(dpm1_rise & CONT_SCANOUT)) {
+		dpi[DPM_1 / 4] = dpm1_rise | CONT_SCANOUT;
 		dpi[HA_STREAM_START / 4] = 1;
 		dpi[GO_SCANOUT / 4] = 1;
-		rimesso = 1;
+		restored = 1;
 	}
-	printf("[%.3f] RISALITA di VID_EN dopo %.1f ms; DPM_1 alla risalita 0x%08x%s\n", tr,
-	       (tr - tf) * 1e3, dpm1_risalita,
-	       rimesso ? "  ATTENZIONE bit 23 ancora zero: rimesso io, con HA_STREAM_START e GO_SCANOUT" : "");
+	printf("[%.3f] VID_EN ROSE after %.1f ms; DPM_1 on the rising edge 0x%08x%s\n", tr,
+	       (tr - tf) * 1e3, dpm1_rise,
+	       restored ? "  WARNING bit 23 still zero: restored here, with HA_STREAM_START and GO_SCANOUT" : "");
 
 	const double off[4] = { 0.005, 0.020, 0.050, 0.100 };
 	uint32_t ps[4], pf[4];
@@ -147,20 +147,20 @@ int main(int argc, char **argv)
 			if (val[j] == ts_sts[i]) { cnt[j]++; break; }
 		if (j == uniq && uniq < 16) { val[uniq] = ts_sts[i]; cnt[uniq] = 1; uniq++; }
 	}
-	printf("         letture a VID_EN basso: %d, con errore vivo: %d", n, miss);
+	printf("         reads with VID_EN low: %d, with a live error: %d", n, miss);
 	if (t_last_err > 0)
-		printf(", ultimo errore a +%.1f ms dalla discesa", (t_last_err - tf) * 1e3);
-	printf("; valori:");
+		printf(", last error at +%.1f ms from the falling edge", (t_last_err - tf) * 1e3);
+	printf("; values:");
 	for (int j = 0; j < uniq; j++)
 		printf(" 0x%03x x%d", val[j], cnt[j]);
-	printf("\n         prime letture (ms dalla discesa, STS):");
+	printf("\n         first reads (ms from the falling edge, STS):");
 	for (int i = 0; i < n && i < 6; i++)
 		printf(" %.1f=0x%03x", (ts_t[i] - tf) * 1e3, ts_sts[i]);
 	printf("\n");
 	for (int i = 0; i < 4; i++)
 		printf("         +%3.0f ms: STS 0x%03x FLAG 0x%03x\n", off[i] * 1e3, ps[i], pf[i]);
-	printf("[%.3f] ESITO a +50 ms: %s (STS 0x%03x)%s\n", now_s(),
-	       ps[2] == 0x001 ? "SANO" : "FERMO", ps[2],
-	       err_seen ? " [SCARTARE: errore prima della discesa]" : "");
+	printf("[%.3f] OUTCOME at +50 ms: %s (STS 0x%03x)%s\n", now_s(),
+	       ps[2] == 0x001 ? "HEALTHY" : "STOPPED", ps[2],
+	       err_seen ? " [DISCARD: error before the falling edge]" : "");
 	return 0;
 }

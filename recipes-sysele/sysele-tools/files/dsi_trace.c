@@ -1,14 +1,14 @@
-// Traccia le transizioni del generatore video DSI (cdns-dsi, 7c018000).
-// Uso: dsi_trace <secondi> [periodo_us, default 200]
-// Tempi in CLOCK_MONOTONIC (s). NON allineati con il dmesg: misurato uno
-// scarto di almeno 77 ms, confrontare solo tempi della stessa traccia.
-// Campiona ogni periodo_us (default 200 us); per tracce lunghe basta 1000.
+// Trace the transitions of the DSI video stream generator (cdns-dsi, 7c018000).
+// Usage: dsi_trace <seconds> [period_us, default 200]
+// CLOCK_MONOTONIC times, in seconds. NOT aligned with dmesg: a skew of at least
+// 77 ms was measured, so only compare times within the same trace.
+// Samples every period_us (default 200 us); 1000 is enough for long traces.
 //
-// Con il video buono VSG_RUNNING cade a 0 per circa 0,3 ms a ogni frame
-// (intervallo fra frame, clock non continuo). Quindi:
-// - un cambio di MCTL_MAIN_DATA_CTL o di VID_MODE_STS_FLAG si stampa subito;
-// - un cambio di VID_MODE_STS o MCTL_LANE_STS si stampa solo se dura almeno
-//   STABLE_S, altrimenti si conta come impulso.
+// With good video VSG_RUNNING drops to 0 for about 0.3 ms on every frame (the
+// inter frame gap, non continuous clock). Therefore:
+// - a change of MCTL_MAIN_DATA_CTL or VID_MODE_STS_FLAG is printed at once;
+// - a change of VID_MODE_STS or MCTL_LANE_STS is printed only if it lasts at
+//   least STABLE_S, otherwise it is counted as a pulse.
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -51,14 +51,14 @@ int main(int argc, char **argv)
 	double t0 = now_s(), end = t0 + dur;
 	unsigned long samples = 0, blips = 0;
 
-	// ultimo stato stampato
+	// last state printed
 	uint32_t pd = r[DATA_CTL / 4], pf = r[VID_FLAG / 4];
 	uint32_t pv = r[VID_STS / 4], pl = r[LANE_STS / 4];
-	// candidato per VID_STS/LANE_STS, con l'istante in cui e' comparso
+	// candidate for VID_STS/LANE_STS, with the instant it appeared
 	uint32_t cv = pv, cl = pl;
 	double ct = t0;
 
-	printf("traccia per %.1f s, periodo %ld us\n", dur, period_us);
+	printf("tracing for %.1f s, period %ld us\n", dur, period_us);
 	show(t0, "inizio", pd, pv, pf, pl);
 	for (double t = t0; t < end; t = now_s()) {
 		uint32_t d = r[DATA_CTL / 4], v = r[VID_STS / 4];
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
 			cv = v; cl = l; ct = t;
 		} else if (v != cv || l != cl) {
 			// il candidato cambia: se il precedente non era durato abbastanza
-			// ed era diverso dallo stato stampato, era un impulso
+			// and it differed from the printed state, so it was a pulse
 			if ((cv != pv || cl != pl) && t - ct < STABLE_S)
 				blips++;
 			cv = v; cl = l; ct = t;
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 		nanosleep(&nap, NULL);
 	}
 	double el = now_s() - t0;
-	printf("fine: %lu campioni in %.1f s (%.0f al secondo), impulsi brevi ignorati: %lu\n",
+	printf("done: %lu samples in %.1f s (%.0f per second), short pulses ignored: %lu\n",
 	       samples, el, samples / el, blips);
 	return 0;
 }

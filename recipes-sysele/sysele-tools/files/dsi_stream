@@ -1,29 +1,29 @@
 #!/bin/sh
-# Manda la camera sul pannello DSI.
-# Uso: dsi_stream [30|60] [secondi|inf]
-# I JSON stanno in $SYSELE_SHARE (default /opt/sysele/share), li crea dsi_config.
-# Il log del run sta in $STREAM_LOG (default /tmp/dsi_stream.log).
+# Send the camera to the DSI panel.
+# Usage: dsi_stream [30|60] [seconds|inf]
+# The JSONs live in $SYSELE_VAR (default /opt/sysele/var), dsi_config builds them.
+# The run log is in $STREAM_LOG (default /tmp/dsi_stream.log).
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
 case "$1" in
 -h|--help) usage; exit 0 ;;
 esac
 FPS=${1:-30}; DUR=${2:-10}
-DIR=${SYSELE_SHARE:-/opt/sysele/share}
+DIR=${SYSELE_VAR:-/opt/sysele/var}
 LOG=${STREAM_LOG:-/tmp/dsi_stream.log}
 case "$FPS" in
   30) J=$DIR/frontend_dsi_30.json ;;
   60) J=$DIR/frontend_dsi_60.json ;;
-  *)  echo "primo argomento: 30 oppure 60"; exit 1 ;;
+  *)  echo "dsi_stream: first argument is 30 or 60"; exit 1 ;;
 esac
-[ -f "$J" ] || { echo "manca $J, lancia dsi_config"; exit 1; }
-echo "fps=$FPS durata=$DUR   (log in $LOG)"
+[ -f "$J" ] || { echo "dsi_stream: $J is missing, run dsi_config"; exit 1; }
+echo "fps=$FPS duration=$DUR   (log in $LOG)"
 if [ "$DUR" = "inf" ]; then T=""; else T="timeout $DUR"; fi
 $T gst-launch-1.0 -v hailofrontendbinsrc config-file-path=$J name=fe \
   fe.src_0 ! queue leaky=downstream max-size-buffers=5 ! videoconvert n-threads=4 ! \
   video/x-raw,format=BGR ! \
   fpsdisplaysink video-sink="kmssink driver-name=hailo-drm force-modesetting=true can-scale=false" \
   text-overlay=false sync=false > $LOG 2>&1
-echo "--- risultato ---"
+echo "--- result ---"
 grep -o "rendered: [0-9]*, dropped: [0-9]*, current: [0-9.]*, average: [0-9.]*" $LOG | tail -1
-echo "errori nel log: $(grep -ci "error\|SIGSEGV" $LOG)"
-echo "ultima attesa lane: $(dmesg | grep -oE "Lanes ready after [0-9]+ us|Timed Out: DSI-DPhy[^(]*" | tail -1)"
+echo "errors in the log: $(grep -ci "error\|SIGSEGV" $LOG)"
+echo "last lane wait: $(dmesg | grep -oE "Lanes ready after [0-9]+ us|Timed Out: DSI-DPhy[^(]*" | tail -1)"

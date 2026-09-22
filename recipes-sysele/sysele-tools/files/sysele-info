@@ -4,12 +4,12 @@
 
 SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
 
-if [ ! -r "$SYSELE_DIR/build-info" ]; then
-    echo "sysele-info: $SYSELE_DIR/build-info is missing" >&2
+if [ ! -r "$SYSELE_DIR/share/build-info" ]; then
+    echo "sysele-info: $SYSELE_DIR/share/build-info is missing" >&2
     exit 1
 fi
 
-cat "$SYSELE_DIR/build-info"
+cat "$SYSELE_DIR/share/build-info"
 
 # The one line description lives in the file itself: line 2 of a shell tool,
 # under the shebang, and line 1 of the source of a compiled one.
@@ -20,7 +20,7 @@ describe() {
     esac
 }
 
-echo "  Comandi, nel PATH"
+echo "  commands, on the PATH"
 for t in "$SYSELE_DIR"/bin/*; do
     [ -x "$t" ] || continue
     n=$(basename "$t")
@@ -28,16 +28,16 @@ for t in "$SYSELE_DIR"/bin/*; do
     printf "    %-14s %s\n" "$n" "$(describe "$t")"
 done
 
-if [ -d "$SYSELE_DIR/diag" ]; then
+if [ -d "$SYSELE_DIR/diagnostics" ]; then
     echo
-    echo "  Strumenti di misura, fuori dal PATH, in $SYSELE_DIR/diag"
+    echo "  instruments, off the PATH, in $SYSELE_DIR/diagnostics"
     printf "   "
-    for t in "$SYSELE_DIR"/diag/*; do
+    for t in "$SYSELE_DIR"/diagnostics/*; do
         [ -x "$t" ] && printf " %s" "$(basename "$t")"
     done
     echo
 fi
 
 echo
-echo "  Sorgenti in $SYSELE_DIR/src, file generati in $SYSELE_DIR/share"
+echo "  sources in $SYSELE_DIR/src, configuration in $SYSELE_DIR/etc, generated files in $SYSELE_DIR/var"
 echo

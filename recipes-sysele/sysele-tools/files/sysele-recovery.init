@@ -1,0 +1,48 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          sysele-recovery
+# Required-Start:    $local_fs
+# Required-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: install the U-Boot bootmenu recovery entries
+# Description:       Adds the Sysele entries to the U-Boot bootmenu on the
+#                    first boot, so that a device tree selection that never
+#                    reaches Linux can still be undone from the serial console.
+### END INIT INFO
+
+# The entries belong in the U-Boot default environment, which would mean
+# rebuilding and signing U-Boot and reprogramming the SPI-NOR. Until that is
+# done they are written from here, once, into the saved environment.
+#
+# The write happens only when the entries are not there yet, and it is a single
+# environment transaction. A failure is reported and never blocks the boot.
+
+CONFIG=/opt/sysele/bin/sysele-config
+
+case "$1" in
+    start)
+        [ -x "$CONFIG" ] || exit 0
+        if out=$("$CONFIG" recovery --if-missing 2>&1); then
+            [ -n "$out" ] && echo "sysele-recovery: $(echo "$out" | head -1)"
+        else
+            echo "sysele-recovery: $out" >&2
+        fi
+        ;;
+    stop|restart|force-reload)
+        ;;
+    status)
+        if fw_printenv 2>/dev/null | grep -q "^bootmenu_[0-9]*=Sysele:"; then
+            echo "recovery entries present"
+        else
+            echo "recovery entries missing"
+            exit 3
+        fi
+        ;;
+    *)
+        echo "usage: $0 {start|stop|status}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

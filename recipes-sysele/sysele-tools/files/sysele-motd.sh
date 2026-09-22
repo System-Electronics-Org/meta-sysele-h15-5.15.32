@@ -2,4 +2,4 @@
 # Kept as a profile.d snippet rather than /etc/motd so that it does not
 # collide with the /etc/motd shipped by base-files.
 
-[ -r /opt/sysele/build-info ] && cat /opt/sysele/build-info
+[ -r /opt/sysele/share/build-info ] && cat /opt/sysele/share/build-info
