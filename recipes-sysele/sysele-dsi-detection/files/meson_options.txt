@@ -1,0 +1,2 @@
+option('install_dir', type : 'string', value : '/opt/sysele/apps/dsi_detection',
+       description : 'Directory the executable is installed into')

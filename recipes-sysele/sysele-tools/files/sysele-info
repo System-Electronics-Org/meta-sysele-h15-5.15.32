@@ -39,5 +39,8 @@ if [ -d "$SYSELE_DIR/diagnostics" ]; then
 fi
 
 echo
+if [ -d "$SYSELE_DIR/apps" ]; then
+    echo "  applications in $SYSELE_DIR/apps"
+fi
 echo "  sources in $SYSELE_DIR/src, configuration in $SYSELE_DIR/etc, generated files in $SYSELE_DIR/var"
 echo
