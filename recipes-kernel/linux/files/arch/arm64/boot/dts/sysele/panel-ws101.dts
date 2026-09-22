@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Overlay: swap the DSI panel for the Waveshare 10.1" 1280x800 (WS-23450).
+ * Overlay: select the Waveshare 10.1" 1280x800 display and touch (WS-23450).
  *
  * Same result as astrial-h15-ws101.dtb, reached the other way: this one is
  * applied on top of the base tree by U-Boot at boot, so panels stay separate
@@ -18,4 +18,15 @@
 
 &panel_lcd {
     compatible = "waveshare,10.1inch-panel";
+};
+
+&i2c_2 {
+    touchscreen@14 {
+        compatible = "goodix,gt9271";
+        reg = <0x14>;
+        touchscreen-size-x = <800>;
+        touchscreen-size-y = <1280>;
+        touchscreen-inverted-x;
+        touchscreen-swapped-x-y;
+    };
 };

@@ -19,3 +19,14 @@
     /delete-property/ pinctrl-names;
     /delete-property/ pinctrl-0;
 };
+
+&i2c_2 {
+    touchscreen@14 {
+        compatible = "goodix,gt9271";
+        reg = <0x14>;
+        touchscreen-size-x = <800>;
+        touchscreen-size-y = <1280>;
+        touchscreen-inverted-x;
+        touchscreen-swapped-x-y;
+    };
+};

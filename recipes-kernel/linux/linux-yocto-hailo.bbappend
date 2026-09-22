@@ -7,6 +7,7 @@ SRC_URI += " \
     file://arch/arm64/boot/dts/sysele/astrial-h15.dts \
     file://arch/arm64/boot/dts/sysele/astrial-h15-ws101.dts \
     file://arch/arm64/boot/dts/sysele/panel-ws101.dts \
+    file://arch/arm64/boot/dts/sysele/touch-ws101.dts \
     file://arch/arm64/boot/dts/sysele/Makefile \
 "
 do_configure:prepend() {
@@ -17,6 +18,7 @@ do_configure:prepend() {
     cp ${WORKDIR}/arch/arm64/boot/dts/sysele/astrial-h15.dts ${S}/arch/arm64/boot/dts/sysele/
     cp ${WORKDIR}/arch/arm64/boot/dts/sysele/astrial-h15-ws101.dts ${S}/arch/arm64/boot/dts/sysele/
     cp ${WORKDIR}/arch/arm64/boot/dts/sysele/panel-ws101.dts ${S}/arch/arm64/boot/dts/sysele/
+    cp ${WORKDIR}/arch/arm64/boot/dts/sysele/touch-ws101.dts ${S}/arch/arm64/boot/dts/sysele/
     cp ${WORKDIR}/arch/arm64/boot/dts/sysele/Makefile ${S}/arch/arm64/boot/dts/sysele/
     
     # Instead of patching, directly modify the main Makefile
@@ -144,3 +146,7 @@ SRC_URI:append = " file://0029-hailo-drm-export-scanout-stop.patch"
 # cdns-dsi: stop the source and let it settle before shutting the controller
 # down. This is the fix for the dark panel after a pipeline exit.
 SRC_URI:append = " file://0030-cdns-dsi-stop-the-source-before-disabling.patch"
+
+# Poll the Waveshare Goodix controller because the panel has no host IRQ.
+SRC_URI:append = " file://0031-input-goodix-add-polling-mode.patch \
+    file://0032-dt-bindings-input-goodix-make-interrupts-optional.patch"

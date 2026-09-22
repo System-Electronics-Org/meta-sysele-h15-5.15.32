@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Joseph Guo <qijian.guo@nxp.com>
+Date: Thu, 22 May 2025 11:04:18 +0900
+Subject: [PATCH] Input: goodix - add support for polling mode
+
+Waveshare DSI panels expose the Goodix controller over I2C without an
+interrupt line. Use the input polling infrastructure at 60 Hz when no
+IRQ is described.
+
+Backported to the Hailo 5.15 driver.
+
+Upstream-Status: Backport [409fe0cea366]
+Signed-off-by: Joseph Guo <qijian.guo@nxp.com>
+---
+ drivers/input/touchscreen/goodix.c | 43 ++++++++++++++++++++++++++++++++---
+ 1 file changed, 40 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/input/touchscreen/goodix.c b/drivers/input/touchscreen/goodix.c
+--- a/drivers/input/touchscreen/goodix.c
++++ b/drivers/input/touchscreen/goodix.c
+@@ -62,6 +62,7 @@
+ #define RESOLUTION_LOC		1
+ #define MAX_CONTACTS_LOC	5
+ #define TRIGGER_LOC		6
++#define GOODIX_POLL_INTERVAL_MS	17
+ 
+ /* Our special handling for GPIO accesses through ACPI is x86 specific */
+ #if defined CONFIG_X86 && defined CONFIG_ACPI
+@@ -425,6 +429,14 @@
+ 	input_sync(ts->input_dev);
+ }
+ 
++static void goodix_ts_work_i2c_poll(struct input_dev *input)
++{
++	struct goodix_ts_data *ts = input_get_drvdata(input);
++
++	goodix_process_events(ts);
++	goodix_i2c_write_u8(ts->client, GOODIX_READ_COOR_ADDR, 0);
++}
++
+ /**
+  * goodix_ts_irq_handler - The IRQ handler
+  *
+@@ -443,13 +455,29 @@
+ 	return IRQ_HANDLED;
+ }
+ 
++static void goodix_enable_irq(struct goodix_ts_data *ts)
++{
++	if (ts->client->irq)
++		enable_irq(ts->client->irq);
++}
++
++static void goodix_disable_irq(struct goodix_ts_data *ts)
++{
++	if (ts->client->irq)
++		disable_irq(ts->client->irq);
++}
++
+ static void goodix_free_irq(struct goodix_ts_data *ts)
+ {
+-	devm_free_irq(&ts->client->dev, ts->client->irq, ts);
++	if (ts->client->irq)
++		devm_free_irq(&ts->client->dev, ts->client->irq, ts);
+ }
+ 
+ static int goodix_request_irq(struct goodix_ts_data *ts)
+ {
++	if (!ts->client->irq)
++		return 0;
++
+ 	return devm_request_threaded_irq(&ts->client->dev, ts->client->irq,
+ 					 NULL, goodix_ts_irq_handler,
+ 					 ts->irq_flags, ts->client->name, ts);
+@@ -1100,6 +1128,18 @@
+ 		return error;
+ 	}
+ 
++	input_set_drvdata(ts->input_dev, ts);
++	if (!ts->client->irq) {
++		error = input_setup_polling(ts->input_dev,
++					    goodix_ts_work_i2c_poll);
++		if (error) {
++			dev_err(&ts->client->dev,
++				"could not set up polling mode, %d\n", error);
++			return error;
++		}
++		input_set_poll_interval(ts->input_dev, GOODIX_POLL_INTERVAL_MS);
++	}
++
+ 	error = input_register_device(ts->input_dev);
+ 	if (error) {
+ 		dev_err(&ts->client->dev,
+@@ -1280,7 +1320,7 @@
+ 
+ 	/* We need gpio pins to suspend/resume */
+ 	if (ts->irq_pin_access_method == IRQ_PIN_ACCESS_NONE) {
+-		disable_irq(client->irq);
++		goodix_disable_irq(ts);
+ 		return 0;
+ 	}
+ 
+@@ -1322,7 +1362,7 @@
+ 	int error;
+ 
+ 	if (ts->irq_pin_access_method == IRQ_PIN_ACCESS_NONE) {
+-		enable_irq(client->irq);
++		goodix_enable_irq(ts);
+ 		return 0;
+ 	}
+ 
