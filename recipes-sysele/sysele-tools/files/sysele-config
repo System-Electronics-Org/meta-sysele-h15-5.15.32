@@ -150,8 +150,10 @@ cmd_clear() {
 # is laid without rebuilding U-Boot. It is what recovers a board that no longer
 # reaches Linux and can only be fixed from the serial console.
 #
-# Every entry goes in through a single fw_setenv -s: one environment
-# transaction instead of one flash erase and write per entry.
+# Every change goes in through a single fw_setenv -s: one environment
+# transaction instead of one flash erase and write per entry. The script
+# syntax is libubootenv's, the fw_setenv this image ships: name=value, split
+# at the first '=', and an empty value deletes the variable.
 cmd_recovery() {
     env_now=$(fw_printenv 2>/dev/null)
 
@@ -174,7 +176,7 @@ cmd_recovery() {
 
     i=$first
     d=$(default_base)
-    printf 'bootmenu_%s %s factory selection=setenv board_dtb %s; setenv dtb_overlays '"'"' '"'"'; saveenv; reset\n' \
+    printf 'bootmenu_%s=%s factory selection=setenv board_dtb %s; setenv dtb_overlays '"'"' '"'"'; saveenv; reset\n' \
         "$i" "$MENU_TAG" "$d" >> "$script"
     i=$((i + 1))
 
@@ -182,7 +184,7 @@ cmd_recovery() {
     # the behaviour wanted by somebody trying to get back to a booting board.
     while IFS="$(printf '\t')" read -r t n c l; do
         [ "$t" = "overlay" ] || continue
-        printf 'bootmenu_%s %s %s=setenv dtb_overlays '"'"'%s'"'"'; saveenv; reset\n' \
+        printf 'bootmenu_%s=%s %s=setenv dtb_overlays '"'"'%s'"'"'; saveenv; reset\n' \
             "$i" "$MENU_TAG" "$l" "$c" >> "$script"
         i=$((i + 1))
     done < "$LIST"
@@ -190,17 +192,23 @@ cmd_recovery() {
     while IFS="$(printf '\t')" read -r t n c l; do
         case "$t" in base*) ;; *) continue ;; esac
         [ "$n" = "$d" ] && continue
-        printf 'bootmenu_%s %s %s=setenv board_dtb %s; setenv dtb_overlays '"'"' '"'"'; saveenv; reset\n' \
+        printf 'bootmenu_%s=%s %s=setenv board_dtb %s; setenv dtb_overlays '"'"' '"'"'; saveenv; reset\n' \
             "$i" "$MENU_TAG" "$l" "$n" >> "$script"
         i=$((i + 1))
     done < "$LIST"
 
-    # A previous install may have left more entries than this build needs. A
-    # name with no value deletes the variable.
-    printf '%s\n' "$env_now" | sed -n 's/^\(bootmenu_\([0-9]*\)\)=.*/\1 \2/p' |
-    while read -r name idx; do
-        [ "$idx" -ge "$i" ] 2>/dev/null || continue
-        printf '%s\n' "$name" >> "$script"
+    # A previous install may have left more entries than this build needs.
+    printf '%s\n' "$env_now" | sed -n 's/^bootmenu_\([0-9]*\)=.*/\1/p' |
+    while read -r idx; do
+        [ "$idx" -ge "$i" ] 2>/dev/null && printf 'bootmenu_%s=\n' "$idx" >> "$script"
+    done
+
+    # An older version of this tool wrote the entries in the other fw_setenv
+    # syntax, which libubootenv read as names with spaces in them. U-Boot never
+    # sees those; remove them.
+    printf '%s\n' "$env_now" | grep '^bootmenu_[0-9]* ' | cut -d= -f1 |
+    while IFS= read -r bad; do
+        printf '%s=\n' "$bad" >> "$script"
     done
 
     fw_setenv -s "$script" || { rm -f "$script"; die "fw_setenv failed to write the recovery entries"; }
