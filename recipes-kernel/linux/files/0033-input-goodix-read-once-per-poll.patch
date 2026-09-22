@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Riccardo Fiocchi <hwele05@systemelectronics.com>
+Date: Wed, 23 Sep 2026 10:00:00 +0200
+Subject: [PATCH] Input: goodix - read the buffer once per poll in polling mode
+
+In polling mode every poll goes through goodix_ts_read_input_report(),
+whose loop re-reads the buffer status every 1 to 2 ms for up to 20 ms,
+waiting for data an interrupt has announced. A poll announces nothing: with
+no finger on the panel each 17 ms poll became a burst of reads, and the bus
+carried a transfer about every 2 ms instead of one per poll. The panel
+controller of the Waveshare DSI panels sits on that same bus.
+
+Read once per poll when there is no interrupt, and let the next poll look
+again. Interrupt mode is unchanged.
+
+Upstream-Status: Pending
+Signed-off-by: Riccardo Fiocchi <hwele05@systemelectronics.com>
+---
+--- a/drivers/input/touchscreen/goodix.c
++++ b/drivers/input/touchscreen/goodix.c
+@@ -335,6 +335,15 @@
+ 			return touch_num;
+ 		}
+ 
++		/*
++		 * This loop waits for data that an interrupt has announced. A
++		 * poll announces nothing, and with no finger on the panel it
++		 * would turn every poll into 20 ms of back to back reads. Read
++		 * once and leave the next read to the next poll.
++		 */
++		if (!ts->client->irq)
++			break;
++
+ 		usleep_range(1000, 2000); /* Poll every 1 - 2 ms */
+ 	} while (time_before(jiffies, max_timeout));
+ 

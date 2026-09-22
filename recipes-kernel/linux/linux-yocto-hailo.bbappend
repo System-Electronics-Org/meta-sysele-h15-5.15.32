@@ -150,3 +150,7 @@ SRC_URI:append = " file://0030-cdns-dsi-stop-the-source-before-disabling.patch"
 # Poll the Waveshare Goodix controller because the panel has no host IRQ.
 SRC_URI:append = " file://0031-input-goodix-add-polling-mode.patch \
     file://0032-dt-bindings-input-goodix-make-interrupts-optional.patch"
+
+# In polling mode, read the Goodix buffer once per poll instead of waiting up
+# to 20 ms for data that only an interrupt can announce.
+SRC_URI:append = " file://0033-input-goodix-read-once-per-poll.patch"
