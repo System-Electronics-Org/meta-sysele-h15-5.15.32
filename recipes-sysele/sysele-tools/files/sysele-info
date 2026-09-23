@@ -39,5 +39,13 @@ if [ -d "$SYSELE_DIR/diagnostics" ]; then
 fi
 
 echo
+if [ -d "$SYSELE_DIR/apps" ]; then
+    echo "  applications, in $SYSELE_DIR/apps, started by the commands above"
+    printf "   "
+    for a in "$SYSELE_DIR"/apps/*/*; do
+        [ -d "$a" ] && printf " %s/%s" "$(basename "$(dirname "$a")")" "$(basename "$a")"
+    done
+    echo
+fi
 echo "  sources in $SYSELE_DIR/src, configuration in $SYSELE_DIR/etc, generated files in $SYSELE_DIR/var"
 echo

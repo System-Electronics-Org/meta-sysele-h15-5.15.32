@@ -1,0 +1,182 @@
+#!/bin/sh
+# YOLOv8 detection and privacy effects with direct DSI output.
+# SPDX-License-Identifier: MIT
+
+usage() {
+    cat <<'EOF'
+Usage:
+  dsi_detection [options]
+  dsi_detection [seconds|inf] [fps] [interval] [effect]
+
+Options:
+  -t, --duration SEC|inf          Run duration; inf or n means unlimited (default: inf)
+  -f, --fps N                     Camera and display frame rate (default: 30)
+  -i, --inference-interval N      Run inference every N frames (default: 2)
+  -e, --face-effect MODE          n, gaussian, box, or pixel (default: n; y = gaussian)
+  -s, --privacy-strength N        Privacy effect strength from 1 to 5 (default: 3)
+      --show-fps                  Show the FPS counter in the top-left corner
+      --no-show-fps               Disable the FPS counter (default)
+  -h, --help                      Show this help
+
+Example:
+  dsi_detection --fps=30 --inference-interval=4 --face-effect=pixel \
+      --privacy-strength=2 --show-fps
+EOF
+}
+
+say() { echo "dsi_detection: $*"; }
+
+SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
+# Fixed, not derived from $0: this script is reached both as the command in bin
+# and as run inside the application directory.
+APP_DIR=${DETECTION_DSI_DIR:-$SYSELE_DIR/apps/dsi/detection}
+LOG_DIR=$APP_DIR/logs
+CONF=${CAMERA_AE_CONF:-$SYSELE_DIR/etc/camera_ae.conf}
+AAA=${SYSELE_3ACONFIG:-/usr/bin/3aconfig.json}
+APP=${DETECTION_DSI_APP:-$APP_DIR/dsi_detection_app}
+DURATION_ARG=${DETECTION_DSI_DURATION:-inf}
+FPS=${DETECTION_DSI_FPS:-30}
+INFERENCE_INTERVAL=${DETECTION_DSI_INFERENCE_INTERVAL:-2}
+FACE_EFFECT=${DETECTION_DSI_FACE_EFFECT:-${DETECTION_DSI_FACE_BLUR:-n}}
+PRIVACY_STRENGTH=${DETECTION_DSI_PRIVACY_STRENGTH:-3}
+SHOW_FPS=${DETECTION_DSI_SHOW_FPS:-n}
+POSITIONAL_INDEX=0
+
+assign_positional() {
+    POSITIONAL_INDEX=$((POSITIONAL_INDEX + 1))
+    case "$POSITIONAL_INDEX" in
+        1) DURATION_ARG=$1 ;;
+        2) FPS=$1 ;;
+        3) INFERENCE_INTERVAL=$1 ;;
+        4) FACE_EFFECT=$1 ;;
+        *) say "too many positional arguments"; exit 2 ;;
+    esac
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help|help) usage; exit 0 ;;
+        --duration=*) DURATION_ARG=${1#*=}; shift ;;
+        -t|--duration) [ "$#" -ge 2 ] || { say "$1 requires a value"; exit 2; }; DURATION_ARG=$2; shift 2 ;;
+        --fps=*) FPS=${1#*=}; shift ;;
+        -f|--fps) [ "$#" -ge 2 ] || { say "$1 requires a value"; exit 2; }; FPS=$2; shift 2 ;;
+        --inference-interval=*) INFERENCE_INTERVAL=${1#*=}; shift ;;
+        -i|--inference-interval) [ "$#" -ge 2 ] || { say "$1 requires a value"; exit 2; }; INFERENCE_INTERVAL=$2; shift 2 ;;
+        --face-effect=*|--face-blur=*) FACE_EFFECT=${1#*=}; shift ;;
+        -e|--face-effect|--face-blur) [ "$#" -ge 2 ] || { say "$1 requires a value"; exit 2; }; FACE_EFFECT=$2; shift 2 ;;
+        --privacy-strength=*) PRIVACY_STRENGTH=${1#*=}; shift ;;
+        -s|--privacy-strength) [ "$#" -ge 2 ] || { say "$1 requires a value"; exit 2; }; PRIVACY_STRENGTH=$2; shift 2 ;;
+        --show-fps) SHOW_FPS=y; shift ;;
+        --no-show-fps) SHOW_FPS=n; shift ;;
+        --) shift; while [ "$#" -gt 0 ]; do assign_positional "$1"; shift; done ;;
+        -*) say "unknown option: $1"; exit 2 ;;
+        *) assign_positional "$1"; shift ;;
+    esac
+done
+
+case "$DURATION_ARG" in
+    inf|n) DUR=2147483647 ;;
+    *[!0-9]*|'') say "invalid duration: $DURATION_ARG (use seconds, inf, or n)"; exit 2 ;;
+    *) DUR=$DURATION_ARG ;;
+esac
+case "$FPS" in *[!0-9]*|'') say "invalid frame rate: $FPS"; exit 2 ;; esac
+case "$INFERENCE_INTERVAL" in *[!0-9]*|'') say "invalid inference interval: $INFERENCE_INTERVAL"; exit 2 ;; esac
+case "$FACE_EFFECT" in n|y|gaussian|box|pixel) ;; *) say "face effect must be n, y, gaussian, box, or pixel"; exit 2 ;; esac
+case "$PRIVACY_STRENGTH" in *[!0-9]*|'') say "invalid privacy strength: $PRIVACY_STRENGTH"; exit 2 ;; esac
+case "$SHOW_FPS" in y|n) ;; *) say "show-fps must be y or n"; exit 2 ;; esac
+[ "$DUR" -gt 0 ] || { say "duration must be greater than zero"; exit 2; }
+[ "$FPS" -gt 0 ] || { say "frame rate must be greater than zero"; exit 2; }
+[ "$INFERENCE_INTERVAL" -gt 0 ] || { say "inference interval must be greater than zero"; exit 2; }
+[ "$PRIVACY_STRENGTH" -ge 1 ] && [ "$PRIVACY_STRENGTH" -le 5 ] || {
+    say "privacy strength must be between 1 and 5"; exit 2;
+}
+
+JSON=${SYSELE_JSON:-$SYSELE_DIR/var/frontend_dsi_${FPS}.json}
+AE_MODE=native; AE_FIXED_US=10000; FLICKER=0
+[ -r "$CONF" ] && . "$CONF"
+[ -x "$APP" ] || { say "executable not found: $APP"; exit 1; }
+# Absolute, because the logs directory becomes the working directory below.
+JSON=$(readlink -f "$JSON" 2>/dev/null || printf '%s' "$JSON")
+if [ ! -f "$JSON" ]; then
+    # dsi_config writes one JSON per supported frame rate: tell a rate it does
+    # not cover apart from a board where it has not run yet.
+    AVAIL=$(ls "$SYSELE_DIR"/var/frontend_dsi_*.json 2>/dev/null | sed 's|.*/frontend_dsi_\([0-9]*\)\.json$|\1|' | tr '\n' ' ')
+    if [ -n "$AVAIL" ]; then
+        say "no supported JSON found for $FPS fps; available: ${AVAIL% }"
+    else
+        say "$JSON is missing; run dsi_config first"
+    fi
+    exit 1
+fi
+
+SENSOR=""
+for n in /sys/class/video4linux/v4l-subdev*; do
+    case "$(cat "$n/name" 2>/dev/null)" in
+        imx678*) SENSOR=$(cat "$n/name"); SUBDEV="/dev/$(basename "$n")" ;;
+    esac
+done
+[ -n "$SENSOR" ] || { say "no IMX678 sensor found"; exit 1; }
+BUS=$(echo "$SENSOR" | sed -n 's/.* \([0-9]*\)-00[0-9a-f]*$/\1/p')
+ISP=""
+for n in /sys/class/video4linux/v4l-subdev*; do
+    case "$(cat "$n/name" 2>/dev/null)" in hailo-isp*) ISP="/dev/$(basename "$n")" ;; esac
+done
+
+CFG=/usr/bin/Sensor$(awk -F'"' '/"sensor_id"/ { gsub(/[^0-9]/, "", $4); print $4; exit }' "$JSON" 2>/dev/null | grep -E '^[0-9]+$' || echo 1)_Entry.cfg
+[ -f "$CFG" ] || CFG=/usr/bin/Sensor1_Entry.cfg
+CUR=$(sed -n 's/^sensor_i2c_bus *= *\([0-9]*\).*/\1/p' "$CFG")
+if [ "$CUR" != "$BUS" ]; then
+    say "$(basename "$CFG") uses I2C bus $CUR; sensor detected on bus $BUS, updating it"
+    sed "s|^sensor_i2c_bus *=.*|sensor_i2c_bus = $BUS|" "$CFG" > "$CFG.new" && mv "$CFG.new" "$CFG"
+fi
+
+if [ -w "$AAA" ]; then
+    FCUR=$(sed -n 's/.*"flickerPeriod" *: *\([0-9]*\).*/\1/p' "$AAA" | head -1)
+    if [ "$FCUR" != "$FLICKER" ]; then
+        say "changing flicker period from $FCUR to $FLICKER"
+        sed "s|\"flickerPeriod\" *: *[0-9]*|\"flickerPeriod\" : $FLICKER|" "$AAA" > "$AAA.new" && mv "$AAA.new" "$AAA"
+    fi
+fi
+
+# The Hailo libraries write hailort.log and medialib.log into the current
+# directory. Send them to the application's own logs directory, and move there
+# too, which catches anything that writes without being asked.
+mkdir -p "$LOG_DIR" 2>/dev/null
+export HAILORT_LOGGER_PATH="$LOG_DIR"
+export MEDIALIB_LOGGER_PATH="$LOG_DIR"
+cd "$LOG_DIR" || { say "cannot enter $LOG_DIR"; exit 1; }
+
+say "sensor on i2c-$BUS, AE mode $AE_MODE, flicker period $FLICKER, ${FPS} fps, inference every ${INFERENCE_INTERVAL} frames, face effect $FACE_EFFECT, strength $PRIVACY_STRENGTH, FPS display $SHOW_FPS, duration $DURATION_ARG, source $JSON"
+if [ "$SHOW_FPS" = "y" ]; then
+    "$APP" --timeout "$DUR" --framerate "$FPS" --inference-interval "$INFERENCE_INTERVAL" \
+        --face-effect "$FACE_EFFECT" --privacy-strength "$PRIVACY_STRENGTH" --show-fps \
+        --config-file-path "$JSON" &
+else
+    "$APP" --timeout "$DUR" --framerate "$FPS" --inference-interval "$INFERENCE_INTERVAL" \
+        --face-effect "$FACE_EFFECT" --privacy-strength "$PRIVACY_STRENGTH" \
+        --config-file-path "$JSON" &
+fi
+G=$!
+trap 'kill -INT "$G" 2>/dev/null; wait "$G" 2>/dev/null' INT TERM HUP EXIT
+
+if [ "$AE_MODE" = "fixed" ]; then
+    sleep 6
+    VMAX=$(i2ctransfer -f -y "$BUS" w2@0x1a 0x30 0x28 r3 2>/dev/null | awk '{printf "%d", strtonum($3)*65536+strtonum($2)*256+strtonum($1)}')
+    N=$(awk -v u="$AE_FIXED_US" 'BEGIN { printf "%d", u / 7.4074 + 0.5 }')
+    v4l2-ctl -d "$ISP" --set-ctrl isp_ae_enable=0 >/dev/null 2>&1
+    v4l2-ctl -d "$SUBDEV" --set-ctrl exposure=$((N + 1)) >/dev/null 2>&1
+    v4l2-ctl -d "$SUBDEV" --set-ctrl exposure=$N >/dev/null 2>&1
+    v4l2-ctl -d "$SUBDEV" --set-ctrl analogue_gain=0 >/dev/null 2>&1
+    sleep 1
+    SHR=$(i2ctransfer -f -y "$BUS" w2@0x1a 0x30 0x50 r3 2>/dev/null | awk '{printf "%d", strtonum($3)*65536+strtonum($2)*256+strtonum($1)}')
+    if [ "$SHR" = "$((VMAX - N))" ]; then
+        say "fixed exposure verified at $AE_FIXED_US us"
+    else
+        say "warning: fixed exposure did not apply; SHR0 is $SHR, expected $((VMAX - N))"
+    fi
+fi
+
+wait "$G"
+RC=$?
+trap - INT TERM HUP EXIT
+exit "$RC"
