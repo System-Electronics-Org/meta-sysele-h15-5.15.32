@@ -1,0 +1,21 @@
+#!/bin/sh
+# Touch test on the DSI panel: red dots that fade on a black screen.
+# SPDX-License-Identifier: MIT
+#
+# Every option belongs to the executable; run dsi_touch_test --help for the
+# list. This script only decides where the application runs and where anything
+# it writes ends up.
+SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
+# Fixed, not derived from $0: this script is reached both as the command in bin
+# and as run inside the application directory.
+APP_DIR=${TOUCH_TEST_DIR:-$SYSELE_DIR/apps/dsi/touch_test}
+LOG_DIR=$APP_DIR/logs
+APP=${TOUCH_TEST_APP:-$APP_DIR/dsi_touch_test_app}
+
+[ -x "$APP" ] || { echo "dsi_touch_test: executable not found: $APP" >&2; exit 1; }
+
+mkdir -p "$LOG_DIR" 2>/dev/null
+[ -n "${GST_DEBUG:-}" ] && export GST_DEBUG_FILE="${GST_DEBUG_FILE:-$LOG_DIR/gst.log}"
+cd "$LOG_DIR" || { echo "dsi_touch_test: cannot enter $LOG_DIR" >&2; exit 1; }
+
+exec "$APP" "$@"
