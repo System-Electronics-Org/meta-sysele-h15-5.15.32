@@ -182,9 +182,9 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
                              "the camera and the logs before starting it. Run: dsi_detection --help");
     options.add_options()
         ("h,help", "Show this help")
-        ("t,timeout", "Time to run in seconds, or inf to run until stopped",
+        ("t,duration", "Time to run in seconds, or inf to run until stopped",
          cxxopts::value<std::string>()->default_value("inf"))
-        ("f,framerate", "Camera and display framerate",
+        ("f,fps", "Camera and display frame rate",
          cxxopts::value<int>()->default_value(std::to_string(DEFAULT_DISPLAY_FPS)))
         ("i,inference-interval", "Run inference every N accepted frames",
          cxxopts::value<int>()->default_value("2"))
@@ -198,10 +198,16 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
         ("c,config-file-path", "hailofrontendbinsrc JSON configuration",
          cxxopts::value<std::string>()->default_value(DEFAULT_FRONTEND_CONFIG));
 
+    // The names this executable answered to before it spoke the same language as
+    // the command. Kept working, kept out of the help.
+    options.add_options("compatibility")
+        ("timeout", "Former name of --duration", cxxopts::value<std::string>())
+        ("framerate", "Former name of --fps", cxxopts::value<int>());
+
     auto result = options.parse(argc, argv);
     if (result.count("help"))
     {
-        std::cout << options.help() << std::endl;
+        std::cout << options.help({""}) << std::endl;
         help_requested = true;
         return false;
     }
@@ -212,7 +218,8 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
         return false;
     }
 
-    const std::string timeout = result["timeout"].as<std::string>();
+    const std::string timeout =
+        result.count("timeout") ? result["timeout"].as<std::string>() : result["duration"].as<std::string>();
     if (timeout == "inf" || timeout == "n")
         config.timeout = std::numeric_limits<int>::max();
     else
@@ -227,7 +234,7 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
             return false;
         }
     }
-    config.framerate = result["framerate"].as<int>();
+    config.framerate = result.count("framerate") ? result["framerate"].as<int>() : result["fps"].as<int>();
     config.inference_interval = result["inference-interval"].as<int>();
     const std::string face_blur = result.count("face-blur")
                                       ? result["face-blur"].as<std::string>()
@@ -694,11 +701,17 @@ static void stop_and_cleanup(InputPipeline &input, OutputPipeline &output, pipel
 
 int main(int argc, char **argv)
 {
-    if (!std::getenv("SYSELE_LAUNCHED"))
-        std::cerr << "dsi_detection_app: started directly. The camera is not prepared and the libraries "
-                     "write their logs\n                    into the current directory. Use ./run in this "
-                     "directory, or the dsi_detection command.\n"
-                  << std::endl;
+    const bool wants_help = std::any_of(argv + 1, argv + argc, [](const char *argument) {
+        return std::strcmp(argument, "-h") == 0 || std::strcmp(argument, "--help") == 0;
+    });
+    if (!wants_help && !std::getenv("SYSELE_LAUNCHED"))
+    {
+        std::cerr << "dsi_detection_app: this is the executable behind the dsi_detection command, which\n"
+                     "                   prepares the camera and keeps the logs in logs/ next to it.\n"
+                     "                   Start it with ./run from this directory, or with dsi_detection.\n"
+                     "                   To start it anyway: SYSELE_LAUNCHED=1 ./dsi_detection_app\n";
+        return 2;
+    }
 
     AppConfig config{};
     bool help_requested = false;
