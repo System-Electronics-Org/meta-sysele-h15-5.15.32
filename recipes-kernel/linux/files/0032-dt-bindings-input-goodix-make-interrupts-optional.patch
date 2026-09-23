@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Marek Vasut <marek.vasut+renesas@mailbox.org>
+Date: Thu, 4 Sep 2025 21:57:04 +0200
+Subject: [PATCH] dt-bindings: input: touchscreen: goodix: make interrupts optional
+
+Polling-capable Goodix controllers do not require an interrupt line.
+
+Upstream-Status: Backport [https://www.spinics.net/lists/linux-input/msg102755.html]
+Signed-off-by: Marek Vasut <marek.vasut+renesas@mailbox.org>
+---
+ Documentation/devicetree/bindings/input/touchscreen/goodix.yaml | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml b/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml
+--- a/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml
++++ b/Documentation/devicetree/bindings/input/touchscreen/goodix.yaml
+@@ -60,7 +60,6 @@
+ required:
+   - compatible
+   - reg
+-  - interrupts
+ 
+ examples:
+   - |
