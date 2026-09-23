@@ -182,8 +182,7 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
                              "the camera and the logs before starting it. Run: dsi_detection --help");
     options.add_options()
         ("h,help", "Show this help")
-        ("t,duration", "Time to run in seconds, or inf to run until stopped",
-         cxxopts::value<std::string>()->default_value("inf"))
+        ("t,duration", "Seconds to run, or inf", cxxopts::value<std::string>()->default_value("inf"))
         ("f,fps", "Camera and display frame rate",
          cxxopts::value<int>()->default_value(std::to_string(DEFAULT_DISPLAY_FPS)))
         ("i,inference-interval", "Run inference every N accepted frames",
