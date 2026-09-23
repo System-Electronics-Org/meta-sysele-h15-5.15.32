@@ -26,9 +26,11 @@ EOF
 
 say() { echo "dsi_detection: $*"; }
 
-SELF=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
-APP_DIR=$(dirname "$SELF")
 SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
+# Fixed, not derived from $0: this script is reached both as the command in bin
+# and as run inside the application directory.
+APP_DIR=${DETECTION_DSI_DIR:-$SYSELE_DIR/apps/dsi/detection}
+LOG_DIR=$APP_DIR/logs
 CONF=${CAMERA_AE_CONF:-$SYSELE_DIR/etc/camera_ae.conf}
 AAA=${SYSELE_3ACONFIG:-/usr/bin/3aconfig.json}
 APP=${DETECTION_DSI_APP:-$APP_DIR/dsi_detection_app}
@@ -93,6 +95,8 @@ JSON=${SYSELE_JSON:-$SYSELE_DIR/var/frontend_dsi_${FPS}.json}
 AE_MODE=native; AE_FIXED_US=10000; FLICKER=0
 [ -r "$CONF" ] && . "$CONF"
 [ -x "$APP" ] || { say "executable not found: $APP"; exit 1; }
+# Absolute, because the logs directory becomes the working directory below.
+JSON=$(readlink -f "$JSON" 2>/dev/null || printf '%s' "$JSON")
 if [ ! -f "$JSON" ]; then
     # dsi_config writes one JSON per supported frame rate: tell a rate it does
     # not cover apart from a board where it has not run yet.
@@ -133,6 +137,14 @@ if [ -w "$AAA" ]; then
         sed "s|\"flickerPeriod\" *: *[0-9]*|\"flickerPeriod\" : $FLICKER|" "$AAA" > "$AAA.new" && mv "$AAA.new" "$AAA"
     fi
 fi
+
+# The Hailo libraries write hailort.log and medialib.log into the current
+# directory. Send them to the application's own logs directory, and move there
+# too, which catches anything that writes without being asked.
+mkdir -p "$LOG_DIR" 2>/dev/null
+export HAILORT_LOGGER_PATH="$LOG_DIR"
+export MEDIALIB_LOGGER_PATH="$LOG_DIR"
+cd "$LOG_DIR" || { say "cannot enter $LOG_DIR"; exit 1; }
 
 say "sensor on i2c-$BUS, AE mode $AE_MODE, flicker period $FLICKER, ${FPS} fps, inference every ${INFERENCE_INTERVAL} frames, face effect $FACE_EFFECT, strength $PRIVACY_STRENGTH, FPS display $SHOW_FPS, duration $DURATION_ARG, source $JSON"
 if [ "$SHOW_FPS" = "y" ]; then

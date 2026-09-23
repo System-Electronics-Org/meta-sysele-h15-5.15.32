@@ -37,23 +37,29 @@ RDEPENDS:${PN} += " \
     v4l-utils \
 "
 
-SYSELE_APP_DIR = "/opt/sysele/apps/dsi_detection"
+# apps/dsi/<name> holds what the dsi_<name> command uses and produces, and
+# the command itself lives in bin with every other command.
+SYSELE_APP_DIR = "/opt/sysele/apps/dsi/detection"
+SYSELE_BIN_DIR = "/opt/sysele/bin"
 EXTRA_OEMESON += "-Dinstall_dir=${SYSELE_APP_DIR}"
 
 do_install:append() {
-    install -d ${D}${SYSELE_APP_DIR}
-    install -m 0755 ${WORKDIR}/dsi_detection ${D}${SYSELE_APP_DIR}/dsi_detection
+    # The application directory holds one executable, its logs, and a run link
+    # to the command, so that starting it from here does the same thing as
+    # typing the command.
+    install -d ${D}${SYSELE_APP_DIR}/logs
 
-    install -d ${D}/opt/sysele/bin
-    ln -sf ${SYSELE_APP_DIR}/dsi_detection ${D}/opt/sysele/bin/dsi_detection
+    install -d ${D}${SYSELE_BIN_DIR}
+    install -m 0755 ${WORKDIR}/dsi_detection ${D}${SYSELE_BIN_DIR}/dsi_detection
+    ln -sf ${SYSELE_BIN_DIR}/dsi_detection ${D}${SYSELE_APP_DIR}/run
 
     install -d ${D}${bindir}
-    ln -sf ${SYSELE_APP_DIR}/dsi_detection ${D}${bindir}/dsi_detection
+    ln -sf ${SYSELE_BIN_DIR}/dsi_detection ${D}${bindir}/dsi_detection
 }
 
 FILES:${PN} += " \
     ${SYSELE_APP_DIR} \
-    /opt/sysele/bin/dsi_detection \
+    ${SYSELE_BIN_DIR}/dsi_detection \
 "
 
 COMPATIBLE_MACHINE = "^astrial-h15$"

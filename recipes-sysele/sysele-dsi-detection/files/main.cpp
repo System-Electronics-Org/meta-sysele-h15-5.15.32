@@ -17,6 +17,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -173,7 +174,10 @@ static void on_fps_measurement(GstElement *, gdouble fps, gdouble drop_rate, gdo
 
 static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help_requested)
 {
-    cxxopts::Options options("dsi_detection_app", "Astrial H15 YOLOv8n detection with direct DSI output");
+    cxxopts::Options options("dsi_detection_app",
+                             "Astrial H15 YOLOv8n detection with direct DSI output.\n"
+                             "This is the executable behind the dsi_detection command, which prepares\n"
+                             "the camera and the logs before starting it. Run: dsi_detection --help");
     options.add_options()
         ("h,help", "Show this help")
         ("t,timeout", "Time to run in seconds", cxxopts::value<int>()->default_value("60"))
@@ -227,6 +231,15 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
     config.privacy_strength = result["privacy-strength"].as<int>();
     config.show_fps = result["show-fps"].as<bool>();
     config.config_path = result["config-file-path"].as<std::string>();
+    {
+        std::ifstream config_file(config.config_path);
+        if (!config_file.good())
+        {
+            std::cerr << config.config_path << " is missing: run dsi_config first, or pass another one with "
+                      << "--config-file-path" << std::endl;
+            return false;
+        }
+    }
     if (config.timeout <= 0)
     {
         std::cerr << "timeout must be greater than zero" << std::endl;
