@@ -142,6 +142,8 @@ fi
 # directory. Send them to the application's own logs directory, and move there
 # too, which catches anything that writes without being asked.
 mkdir -p "$LOG_DIR" 2>/dev/null
+# Tells the executable it was started the supported way.
+export SYSELE_LAUNCHED=1
 export HAILORT_LOGGER_PATH="$LOG_DIR"
 export MEDIALIB_LOGGER_PATH="$LOG_DIR"
 cd "$LOG_DIR" || { say "cannot enter $LOG_DIR"; exit 1; }

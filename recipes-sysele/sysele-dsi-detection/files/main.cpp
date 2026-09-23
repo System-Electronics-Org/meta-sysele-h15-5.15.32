@@ -17,7 +17,9 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
+#include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -180,7 +182,8 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
                              "the camera and the logs before starting it. Run: dsi_detection --help");
     options.add_options()
         ("h,help", "Show this help")
-        ("t,timeout", "Time to run in seconds", cxxopts::value<int>()->default_value("60"))
+        ("t,timeout", "Time to run in seconds, or inf to run until stopped",
+         cxxopts::value<std::string>()->default_value("inf"))
         ("f,framerate", "Camera and display framerate",
          cxxopts::value<int>()->default_value(std::to_string(DEFAULT_DISPLAY_FPS)))
         ("i,inference-interval", "Run inference every N accepted frames",
@@ -209,7 +212,21 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
         return false;
     }
 
-    config.timeout = result["timeout"].as<int>();
+    const std::string timeout = result["timeout"].as<std::string>();
+    if (timeout == "inf" || timeout == "n")
+        config.timeout = std::numeric_limits<int>::max();
+    else
+    {
+        try
+        {
+            config.timeout = std::stoi(timeout);
+        }
+        catch (const std::exception &)
+        {
+            std::cerr << "timeout must be a number of seconds, or inf" << std::endl;
+            return false;
+        }
+    }
     config.framerate = result["framerate"].as<int>();
     config.inference_interval = result["inference-interval"].as<int>();
     const std::string face_blur = result.count("face-blur")
@@ -677,6 +694,12 @@ static void stop_and_cleanup(InputPipeline &input, OutputPipeline &output, pipel
 
 int main(int argc, char **argv)
 {
+    if (!std::getenv("SYSELE_LAUNCHED"))
+        std::cerr << "dsi_detection_app: started directly. The camera is not prepared and the libraries "
+                     "write their logs\n                    into the current directory. Use ./run in this "
+                     "directory, or the dsi_detection command.\n"
+                  << std::endl;
+
     AppConfig config{};
     bool help_requested = false;
     if (!parse_arguments(argc, argv, config, help_requested))
@@ -713,8 +736,11 @@ int main(int argc, char **argv)
     std::cout << "Running detection on DSI at " << config.framerate << " fps, inference every "
               << config.inference_interval << " frames, face effect="
               << face_effect_name(config.face_effect) << ", privacy strength=" << config.privacy_strength
-              << ", on-screen FPS=" << (config.show_fps ? "on" : "off") << ", for "
-              << config.timeout << " seconds" << std::endl;
+              << ", on-screen FPS=" << (config.show_fps ? "on" : "off") << ", "
+              << (config.timeout == std::numeric_limits<int>::max()
+                      ? std::string("until stopped")
+                      : "for " + std::to_string(config.timeout) + " seconds")
+              << std::endl;
     wait_for_stop_or_timeout(config.timeout);
     stop_and_cleanup(input, output, analytics);
 
