@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "metadata": {
+    "architecture": "hailo15h",
+    "content_hash": "sysele-runtime-profile",
+    "description": "Astrial H15 runtime comparison of standard ISP and AI-ISP Gen3",
+    "generation_timestamp": "2026-09-24T00:00:00+00:00"
+  },
+  "backup_folder_path": "/tmp/dsi_ai_isp/backups",
+  "default_profile": "STANDARD_ISP",
+  "profiles": [
+    {
+      "config_file": "@RUNTIME_DIR@/standard_profile.json",
+      "name": "STANDARD_ISP"
+    },
+    {
+      "config_file": "@RUNTIME_DIR@/ai_profile.json",
+      "name": "AI_ISP"
+    }
+  ]
+}

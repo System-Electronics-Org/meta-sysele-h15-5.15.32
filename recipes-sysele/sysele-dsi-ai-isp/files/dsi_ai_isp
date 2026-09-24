@@ -1,0 +1,36 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+set -eu
+
+SYSELE_DIR=${SYSELE_DIR:-/opt/sysele}
+APP_DIR=${DSI_AI_ISP_DIR:-$SYSELE_DIR/apps/dsi/ai_isp}
+APP=${DSI_AI_ISP_APP:-$APP_DIR/dsi_ai_isp_app}
+CONFIG_DIR=$APP_DIR/config
+RUNTIME_DIR=${DSI_AI_ISP_RUNTIME_DIR:-/tmp/dsi_ai_isp}
+LOG_DIR=$APP_DIR/logs
+
+if [ ! -x "$APP" ]; then
+    SELF=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+    APP_DIR=$(dirname "$SELF")
+    APP=$APP_DIR/dsi_ai_isp_app
+    CONFIG_DIR=$APP_DIR/config
+    LOG_DIR=$APP_DIR/logs
+fi
+
+say() { echo "dsi_ai_isp: $*"; }
+[ -x "$APP" ] || { say "executable not found: $APP"; exit 1; }
+[ -r "$CONFIG_DIR/medialib_config.template.json" ] || {
+    say "configuration not found under $CONFIG_DIR"
+    exit 1
+}
+
+mkdir -p "$RUNTIME_DIR/backups" "$LOG_DIR"
+sed "s|@CONFIG_DIR@|$CONFIG_DIR|g" "$CONFIG_DIR/standard_profile.template.json" > "$RUNTIME_DIR/standard_profile.json"
+sed "s|@CONFIG_DIR@|$CONFIG_DIR|g" "$CONFIG_DIR/ai_profile.template.json" > "$RUNTIME_DIR/ai_profile.json"
+sed "s|@RUNTIME_DIR@|$RUNTIME_DIR|g" "$CONFIG_DIR/medialib_config.template.json" > "$RUNTIME_DIR/medialib_config.json"
+
+export SYSELE_LAUNCHED=1
+export HAILORT_LOGGER_PATH="$LOG_DIR"
+export MEDIALIB_LOGGER_PATH="$LOG_DIR"
+cd "$LOG_DIR"
+exec "$APP" --config-file-path "$RUNTIME_DIR/medialib_config.json" "$@"

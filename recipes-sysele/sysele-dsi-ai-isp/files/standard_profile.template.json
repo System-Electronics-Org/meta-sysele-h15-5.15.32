@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "architecture": "hailo15h",
+    "content_hash": "cb4c77b171af67cbb07fe098d093397fc2ac91c7e53d6901706a8f0d82cd3324",
+    "description": "",
+    "generation_timestamp": "2026-05-22T13:20:30.210503+00:00"
+  },
+  "application_settings": "@CONFIG_DIR@/application_settings.json",
+  "encoded_output_streams": [
+    {
+      "encoding": "@CONFIG_DIR@/encoder_sink0.json",
+      "masking": "/etc/imaging/cfg/hailo15h/imx678/theia_sl410m/4k/profiles/lowlight/single_stream_ai_isp_gen3/masking_sink0.json",
+      "osd": "/etc/imaging/cfg/hailo15h/imx678/theia_sl410m/4k/profiles/lowlight/single_stream_ai_isp_gen3/osd_sink0.json",
+      "stream_id": "sink0"
+    }
+  ],
+  "iq_settings": "@CONFIG_DIR@/iq_standard.json",
+  "sensor_config": "@CONFIG_DIR@/sensor_config.json",
+  "stabilizer_settings": "/etc/imaging/cfg/hailo15h/imx678/theia_sl410m/4k/profiles/lowlight/single_stream_ai_isp_gen3/stabilizer_settings.json"
+}
