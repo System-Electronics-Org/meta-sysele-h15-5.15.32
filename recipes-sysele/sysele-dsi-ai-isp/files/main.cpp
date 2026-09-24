@@ -805,10 +805,11 @@ static bool build_output_pipeline(const AppConfig &config, OutputPipeline &outpu
     GstElement *convert = gst_element_factory_make("videoconvert", "display_convert");
     GstElement *capsfilter = gst_element_factory_make("capsfilter", "display_caps");
     output.fps_text = config.show_fps ? gst_element_factory_make("textoverlay", "fps_text") : nullptr;
+    GstElement *hold = gst_element_factory_make("identity", "display_hold");
     GstElement *fpsdisplay = gst_element_factory_make("fpsdisplaysink", "display_fps");
     GstElement *kmssink = gst_element_factory_make("kmssink", "dsi_sink");
-    if (!output.pipeline || !output.appsrc || !queue || !convert || !capsfilter || !fpsdisplay || !kmssink ||
-        (config.show_fps && !output.fps_text))
+    if (!output.pipeline || !output.appsrc || !queue || !convert || !capsfilter || !hold || !fpsdisplay ||
+        !kmssink || (config.show_fps && !output.fps_text))
         return false;
 
     GstCaps *source_caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "NV12",
@@ -822,6 +823,13 @@ static bool build_output_pipeline(const AppConfig &config, OutputPipeline &outpu
     g_object_set(queue, "leaky", 2, "max-size-buffers", 1, "max-size-bytes", 0,
                  "max-size-time", static_cast<guint64>(0), NULL);
     g_object_set(convert, "n-threads", 4, NULL);
+    // The buttons are drawn on the buffer that reaches the sink, and without
+    // this that buffer belongs to kmssink, which imports it and scans it out
+    // as it is: the panel then shows the picture for a moment before the
+    // buttons are painted on top of it, every frame, which reads as a flicker.
+    // Dropping the allocation query keeps videoconvert on ordinary memory, so
+    // what is drawn on is ours and kmssink copies the finished frame.
+    g_object_set(hold, "drop-allocation", TRUE, NULL);
     GstCaps *display_caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "BGR",
                                                "width", G_TYPE_INT, DISPLAY_WIDTH,
                                                "height", G_TYPE_INT, DISPLAY_HEIGHT,
@@ -849,13 +857,14 @@ static bool build_output_pipeline(const AppConfig &config, OutputPipeline &outpu
     gst_pad_add_probe(sink_pad, GST_PAD_PROBE_TYPE_BUFFER, draw_button_and_capture, &probe, nullptr);
     gst_object_unref(sink_pad);
 
-    gst_bin_add_many(GST_BIN(output.pipeline), output.appsrc, queue, convert, capsfilter, NULL);
+    gst_bin_add_many(GST_BIN(output.pipeline), output.appsrc, queue, convert, capsfilter, hold, NULL);
     if (output.fps_text)
         gst_bin_add(GST_BIN(output.pipeline), output.fps_text);
     gst_bin_add(GST_BIN(output.pipeline), fpsdisplay);
     return output.fps_text
-               ? gst_element_link_many(output.appsrc, queue, convert, capsfilter, output.fps_text, fpsdisplay, NULL)
-               : gst_element_link_many(output.appsrc, queue, convert, capsfilter, fpsdisplay, NULL);
+               ? gst_element_link_many(output.appsrc, queue, convert, capsfilter, output.fps_text, hold, fpsdisplay,
+                                       NULL)
+               : gst_element_link_many(output.appsrc, queue, convert, capsfilter, hold, fpsdisplay, NULL);
 }
 
 static bool build_input_pipeline(const AppConfig &config, int profile, InputPipeline &input,
