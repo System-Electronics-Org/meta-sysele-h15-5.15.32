@@ -1,0 +1,34 @@
+From: System Electronics
+Date: Thu, 24 Sep 2026 14:20:00 +0200
+Subject: [PATCH] medialib: restore SDR on the active sensor during deinit
+
+IspManager::deinit() builds a default frontend_config_t before restoring SDR.
+The default sensor index is SENSOR_0, even when the active profile uses
+SENSOR_1. On Astrial H15 this makes shutdown address the disconnected CSI0
+path and leaves the ISP configured for the pre-ISP denoise pipeline.
+
+Carry the sensor index from the current profile into the temporary SDR
+configuration used for cleanup.
+
+Upstream-Status: Pending
+
+---
+diff --git a/hailo-media-library/media_library/src/isp/isp_manager.cpp b/hailo-media-library/media_library/src/isp/isp_manager.cpp
+--- a/hailo-media-library/media_library/src/isp/isp_manager.cpp
++++ b/hailo-media-library/media_library/src/isp/isp_manager.cpp
+@@ -800,6 +800,15 @@ void IspManager::deinit()
+ 
+     frontend_config_t sdr_config{};
+     sdr_config.input_config.resolution = m_input_resolution;
++    if (m_config_manager_interactor)
++    {
++        auto current_profile = m_config_manager_interactor->get_current_profile();
++        if (current_profile.has_value() && current_profile.value())
++        {
++            sdr_config.input_config.sensor_index =
++                current_profile.value()->sensor_config.input_video.sensor_id;
++        }
++    }
+     bool dual = m_config_manager_interactor && m_config_manager_interactor->is_dual_sensor();
+     const auto &desc = dual ? SDR_DUAL_SENSOR_DESCRIPTOR : SDR_DESCRIPTOR;
+     switch_mode(desc, sdr_config);

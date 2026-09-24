@@ -150,3 +150,6 @@ SRC_URI:append = " file://0030-cdns-dsi-stop-the-source-before-disabling.patch"
 # Poll the Waveshare Goodix controller because the panel has no host IRQ.
 SRC_URI:append = " file://0031-input-goodix-add-polling-mode.patch \
     file://0032-dt-bindings-input-goodix-make-interrupts-optional.patch"
+
+# Pre-ISP AI reinjection follows the only Astrial camera on the CSI1 ISP context.
+SRC_URI:append = " file://0033-isp-route-mcm-input-to-csi1-context.patch"

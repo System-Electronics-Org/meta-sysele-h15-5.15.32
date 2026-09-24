@@ -1,0 +1,28 @@
+From: System Electronics
+Date: Thu, 24 Sep 2026 16:00:00 +0200
+Subject: [PATCH] media: hailo15-isp: route MCM input to the CSI1 context
+
+The upstream MCM input group is hardcoded to VDID 0. Astrial H15 carries
+its camera on CSI1 and therefore consumes the ISP output through VDID 1.
+Pre-ISP AI denoise captures the CSI1 raw stream correctly, but reinjects
+the processed buffers into VDID 0, so no frame reaches the CSI1 ISP output.
+
+Route MCM input through VDID 1 for the Astrial camera topology.
+
+Upstream-Status: Inappropriate [Astrial H15 board-specific camera topology]
+
+---
+diff --git a/drivers/media/platform/hailo/hailo15/common.h b/drivers/media/platform/hailo/hailo15/common.h
+--- a/drivers/media/platform/hailo/hailo15/common.h
++++ b/drivers/media/platform/hailo/hailo15/common.h
+@@ -716,9 +716,7 @@ static inline uint8_t HAILO15_VID_GRP_TO_VDID(int grp_id)
+ 	case HAILO15_VID_GRP_SX_CSI1_ISP_SP:
+ 		return 1;
+ 	case HAILO15_VID_GRP_MCM_IN:
+-		// currently MCM-IN path is only in use
+-		// for VDID 0.
+-		return 0;
++		return 1;
+ 	default:
+ 		return VIV_INVALID_VDID;
+ 	}
