@@ -17,7 +17,9 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
+#include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -180,8 +182,8 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
                              "the camera and the logs before starting it. Run: dsi_detection --help");
     options.add_options()
         ("h,help", "Show this help")
-        ("t,timeout", "Time to run in seconds", cxxopts::value<int>()->default_value("60"))
-        ("f,framerate", "Camera and display framerate",
+        ("t,duration", "Seconds to run, or inf", cxxopts::value<std::string>()->default_value("inf"))
+        ("f,fps", "Camera and display frame rate",
          cxxopts::value<int>()->default_value(std::to_string(DEFAULT_DISPLAY_FPS)))
         ("i,inference-interval", "Run inference every N accepted frames",
          cxxopts::value<int>()->default_value("2"))
@@ -195,10 +197,16 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
         ("c,config-file-path", "hailofrontendbinsrc JSON configuration",
          cxxopts::value<std::string>()->default_value(DEFAULT_FRONTEND_CONFIG));
 
+    // The names this executable answered to before it spoke the same language as
+    // the command. Kept working, kept out of the help.
+    options.add_options("compatibility")
+        ("timeout", "Former name of --duration", cxxopts::value<std::string>())
+        ("framerate", "Former name of --fps", cxxopts::value<int>());
+
     auto result = options.parse(argc, argv);
     if (result.count("help"))
     {
-        std::cout << options.help() << std::endl;
+        std::cout << options.help({""}) << std::endl;
         help_requested = true;
         return false;
     }
@@ -209,8 +217,23 @@ static bool parse_arguments(int argc, char **argv, AppConfig &config, bool &help
         return false;
     }
 
-    config.timeout = result["timeout"].as<int>();
-    config.framerate = result["framerate"].as<int>();
+    const std::string timeout =
+        result.count("timeout") ? result["timeout"].as<std::string>() : result["duration"].as<std::string>();
+    if (timeout == "inf" || timeout == "n")
+        config.timeout = std::numeric_limits<int>::max();
+    else
+    {
+        try
+        {
+            config.timeout = std::stoi(timeout);
+        }
+        catch (const std::exception &)
+        {
+            std::cerr << "timeout must be a number of seconds, or inf" << std::endl;
+            return false;
+        }
+    }
+    config.framerate = result.count("framerate") ? result["framerate"].as<int>() : result["fps"].as<int>();
     config.inference_interval = result["inference-interval"].as<int>();
     const std::string face_blur = result.count("face-blur")
                                       ? result["face-blur"].as<std::string>()
@@ -677,6 +700,18 @@ static void stop_and_cleanup(InputPipeline &input, OutputPipeline &output, pipel
 
 int main(int argc, char **argv)
 {
+    const bool wants_help = std::any_of(argv + 1, argv + argc, [](const char *argument) {
+        return std::strcmp(argument, "-h") == 0 || std::strcmp(argument, "--help") == 0;
+    });
+    if (!wants_help && !std::getenv("SYSELE_LAUNCHED"))
+    {
+        std::cerr << "dsi_detection_app: this is the executable behind the dsi_detection command, which\n"
+                     "                   prepares the camera and keeps the logs in logs/ next to it.\n"
+                     "                   Start it with ./run from this directory, or with dsi_detection.\n"
+                     "                   To start it anyway: SYSELE_LAUNCHED=1 ./dsi_detection_app\n";
+        return 2;
+    }
+
     AppConfig config{};
     bool help_requested = false;
     if (!parse_arguments(argc, argv, config, help_requested))
@@ -713,8 +748,11 @@ int main(int argc, char **argv)
     std::cout << "Running detection on DSI at " << config.framerate << " fps, inference every "
               << config.inference_interval << " frames, face effect="
               << face_effect_name(config.face_effect) << ", privacy strength=" << config.privacy_strength
-              << ", on-screen FPS=" << (config.show_fps ? "on" : "off") << ", for "
-              << config.timeout << " seconds" << std::endl;
+              << ", on-screen FPS=" << (config.show_fps ? "on" : "off") << ", "
+              << (config.timeout == std::numeric_limits<int>::max()
+                      ? std::string("until stopped")
+                      : "for " + std::to_string(config.timeout) + " seconds")
+              << std::endl;
     wait_for_stop_or_timeout(config.timeout);
     stop_and_cleanup(input, output, analytics);
 

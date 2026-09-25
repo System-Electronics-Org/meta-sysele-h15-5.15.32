@@ -142,17 +142,19 @@ fi
 # directory. Send them to the application's own logs directory, and move there
 # too, which catches anything that writes without being asked.
 mkdir -p "$LOG_DIR" 2>/dev/null
+# Tells the executable it was started the supported way.
+export SYSELE_LAUNCHED=1
 export HAILORT_LOGGER_PATH="$LOG_DIR"
 export MEDIALIB_LOGGER_PATH="$LOG_DIR"
 cd "$LOG_DIR" || { say "cannot enter $LOG_DIR"; exit 1; }
 
 say "sensor on i2c-$BUS, AE mode $AE_MODE, flicker period $FLICKER, ${FPS} fps, inference every ${INFERENCE_INTERVAL} frames, face effect $FACE_EFFECT, strength $PRIVACY_STRENGTH, FPS display $SHOW_FPS, duration $DURATION_ARG, source $JSON"
 if [ "$SHOW_FPS" = "y" ]; then
-    "$APP" --timeout "$DUR" --framerate "$FPS" --inference-interval "$INFERENCE_INTERVAL" \
+    "$APP" --duration "$DUR" --fps "$FPS" --inference-interval "$INFERENCE_INTERVAL" \
         --face-effect "$FACE_EFFECT" --privacy-strength "$PRIVACY_STRENGTH" --show-fps \
         --config-file-path "$JSON" &
 else
-    "$APP" --timeout "$DUR" --framerate "$FPS" --inference-interval "$INFERENCE_INTERVAL" \
+    "$APP" --duration "$DUR" --fps "$FPS" --inference-interval "$INFERENCE_INTERVAL" \
         --face-effect "$FACE_EFFECT" --privacy-strength "$PRIVACY_STRENGTH" \
         --config-file-path "$JSON" &
 fi

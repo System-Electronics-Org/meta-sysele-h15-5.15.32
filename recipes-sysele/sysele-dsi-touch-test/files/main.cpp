@@ -462,7 +462,7 @@ void usage()
                 "  -f, --fade SEC        time for a dot to fade to black (default: 3)\n"
                 "  -s, --size MM         dot diameter in millimetres (default: 10)\n"
                 "  -r, --fps N           display frame rate, 1 to 60 (default: 30)\n"
-                "  -t, --duration SEC    stop after SEC seconds (default: run until stopped)\n"
+                "  -t, --duration SEC|inf  stop after SEC seconds; inf runs until stopped (default: inf)\n"
                 "  -h, --help            show this help\n");
 }
 
@@ -492,7 +492,9 @@ bool parse(int argc, char **argv, Options &opt)
             opt.fps = std::atoi(optarg);
             break;
         case 't':
-            opt.duration_s = std::atof(optarg);
+            opt.duration_s = (std::strcmp(optarg, "inf") == 0 || std::strcmp(optarg, "n") == 0)
+                                 ? 0
+                                 : std::atof(optarg);
             break;
         case 'h':
             usage();

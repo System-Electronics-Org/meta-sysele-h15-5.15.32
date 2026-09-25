@@ -15,6 +15,8 @@ APP=${TOUCH_TEST_APP:-$APP_DIR/dsi_touch_test_app}
 [ -x "$APP" ] || { echo "dsi_touch_test: executable not found: $APP" >&2; exit 1; }
 
 mkdir -p "$LOG_DIR" 2>/dev/null
+# Tells the executable it was started the supported way.
+export SYSELE_LAUNCHED=1
 [ -n "${GST_DEBUG:-}" ] && export GST_DEBUG_FILE="${GST_DEBUG_FILE:-$LOG_DIR/gst.log}"
 cd "$LOG_DIR" || { echo "dsi_touch_test: cannot enter $LOG_DIR" >&2; exit 1; }
 
