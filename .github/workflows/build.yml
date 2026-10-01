@@ -428,6 +428,20 @@ jobs:
           cd ..
           ls -lh astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz
 
+      - name: Read the board tools version expected by the flashing script
+        if: inputs.publish
+        run: |
+          set -euo pipefail
+          V=$(sed -n 's/^HAILO_BOARD_TOOLS_VERSION="\(.*\)"$/\1/p' \
+              release-files/program_spi_flash.sh)
+          if [ -z "$V" ]; then
+            echo "ERROR: no HAILO_BOARD_TOOLS_VERSION in release-files/program_spi_flash.sh" >&2
+            echo "       Either the script is missing from the archive, or the variable was renamed." >&2
+            exit 1
+          fi
+          echo "BOARD_TOOLS_VERSION=$V" >> "$GITHUB_ENV"
+          echo "board tools version: $V"
+
       - name: Create Release with Compressed Archive
         if: inputs.publish
         uses: softprops/action-gh-release@v3
@@ -454,6 +468,13 @@ jobs:
             - `u-boot-initial-env`: U-Boot initial environment
             - `customer_certificate.bin`: Customer certificate
             - `u-boot-tfa.itb`: U-Boot TFA
+
+            **Prerequisite, not included in the archive:** flashing the SPI needs Hailo's
+            `hailo15_board_tools` Python package, version **${{ env.BOARD_TOOLS_VERSION }}**.
+            Take it from the Hailo Vision Processor Software Package for Hailo-15H on the
+            [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/) and
+            install it as described in the README. `program_spi_flash.sh` checks for it and
+            stops with instructions if it is missing.
           files: astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz
           prerelease: true
         env:
