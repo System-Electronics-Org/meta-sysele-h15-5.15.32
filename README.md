@@ -24,17 +24,30 @@ Extract it on your host computer:
 tar -xzf astrial-h15-yocto-build-<version>.tar.gz
 ```
 
-**✓ The tar.gz contains everything needed: bootloader, OS image, and all scripts**
+**✓ The tar.gz contains the bootloader, the OS image and all the scripts.**
+
+**One prerequisite is not in it:** the scripts drive the board through Hailo's
+`hailo15_board_tools` Python package, which Hailo distributes through the Developer Zone and
+we do not redistribute. Step 2 below installs it. Without it `program_spi_flash.sh` stops
+before touching the board and tells you so.
 
 ### Step 2: Setup Tools and Environment
 
 **Download Hailo board tools:**
-Go to [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/) and download the Hailo Vision Processor Software Package. Extract it and copy the `hailo15_board_tools-<VERSION>.whl` file to your release folder.
+Go to [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/) and download the Hailo **Vision Processor** Software Package for Hailo-15H. Extract it and copy the
+`hailo15_board_tools-1.12.0-py3-none-any.whl` file to your release folder.
+
+Take it from the Vision Processor package, not from the Accelerators section: Hailo-10 is a
+different device family and ships different board tools. Whatever you download is the right
+one if it contains a `hailo15_board_tools-*.whl`.
+
+The version must match the Hailo stack this release is built against, currently **1.12.0**.
+`program_spi_flash.sh` warns if the installed one differs.
 
 ```bash
 python3 -m venv hailo15_env
 source hailo15_env/bin/activate
-pip install hailo15_board_tools-*.whl
+pip install hailo15_board_tools-1.12.0-py3-none-any.whl
 pip install tftpy
 sudo apt-get install u-boot-tools
 ```
