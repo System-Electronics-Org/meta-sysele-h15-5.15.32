@@ -92,6 +92,10 @@ case "$SHOW_FPS" in y|n) ;; *) say "show-fps must be y or n"; exit 2 ;; esac
 }
 
 JSON=${SYSELE_JSON:-$SYSELE_DIR/var/frontend_dsi_${FPS}.json}
+# The camera JSON follows the connected panel: dsi_config rewrites it only when
+# it is missing or sized for another panel. A JSON given in SYSELE_JSON is used
+# as it is.
+[ -n "${SYSELE_JSON:-}" ] || "$SYSELE_DIR/bin/dsi_config" --if-stale || exit 1
 AE_MODE=native; AE_FIXED_US=10000; FLICKER=0
 [ -r "$CONF" ] && . "$CONF"
 [ -x "$APP" ] || { say "executable not found: $APP"; exit 1; }

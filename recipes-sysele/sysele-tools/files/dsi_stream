@@ -15,6 +15,9 @@ case "$FPS" in
   60) J=$DIR/frontend_dsi_60.json ;;
   *)  echo "dsi_stream: first argument is 30 or 60"; exit 1 ;;
 esac
+# The JSONs follow the connected panel: dsi_config rewrites them only when they
+# are missing or sized for another panel.
+"${SYSELE_DIR:-/opt/sysele}/bin/dsi_config" --if-stale || exit 1
 [ -f "$J" ] || { echo "dsi_stream: $J is missing, run dsi_config"; exit 1; }
 echo "fps=$FPS duration=$DUR   (log in $LOG)"
 if [ "$DUR" = "inf" ]; then T=""; else T="timeout $DUR"; fi

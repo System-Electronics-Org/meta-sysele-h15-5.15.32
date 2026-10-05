@@ -15,6 +15,11 @@ AE_MODE=native; AE_FIXED_US=10000; FLICKER=0
 [ -r "$CONF" ] && . "$CONF"
 say() { echo "dsi_demo: $*"; }
 
+# The camera JSON follows the connected panel: dsi_config rewrites it only when
+# it is missing or sized for another panel. A JSON given in SYSELE_JSON is used
+# as it is.
+[ -n "${SYSELE_JSON:-}" ] || "$SYSELE_DIR/bin/dsi_config" --if-stale || exit 1
+
 # The sensor and its bus are read from the subdev name, never assumed: the i2c
 # numbering has already changed once.
 SENSOR=""; for n in /sys/class/video4linux/v4l-subdev*; do
