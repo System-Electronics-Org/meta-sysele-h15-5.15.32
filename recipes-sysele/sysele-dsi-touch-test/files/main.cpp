@@ -354,6 +354,7 @@ struct Display
     int width = 0;
     int height = 0;
     double pixels_per_mm = 0;
+    const char *panel = "";
 
     bool read_mode(GstElement *sink)
     {
@@ -410,7 +411,9 @@ struct Display
         }
         // Physical widths: Raspberry Pi 7" 154 mm for 800 px, Waveshare 10.1" 217 mm
         // for 1280 px. Used to size the dot in millimetres.
-        pixels_per_mm = width == 800 && height == 480 ? 800.0 / 154.0 : 1280.0 / 217.0;
+        const bool rpi = width == 800 && height == 480;
+        pixels_per_mm = rpi ? 800.0 / 154.0 : 1280.0 / 217.0;
+        panel = rpi ? "Raspberry Pi 7\"" : width == 1280 && height == 800 ? "Waveshare 10.1\"" : "unknown panel";
         return true;
     }
 
@@ -608,7 +611,7 @@ int main(int argc, char **argv)
                 touch.abs_y().minimum, touch.abs_y().maximum);
     std::printf("dsi_touch_test: dot %d px (%.0f mm), fade %.1f s, %d fps, pixel aspect %d/%d. Ctrl+C to stop.\n", dot,
                 opt.size_mm, opt.fade_s, opt.fps, display.par_n, display.par_d);
-    std::printf("dsi_touch_test: display %dx%d BGR\n", display.width, display.height);
+    std::printf("dsi_touch_test: display %dx%d BGR, %s\n", display.width, display.height, display.panel);
     std::fflush(stdout);
 
     touch.start();
