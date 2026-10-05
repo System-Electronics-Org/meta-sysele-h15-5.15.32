@@ -1,0 +1,265 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Riccardo Fiocchi <hwele05@systemelectronics.com>
+Date: Fri, 2 Oct 2026 12:00:00 +0200
+Subject: [PATCH] Input: edt-ft5x06 - poll without IRQ and track contacts
+
+Use input-core polling at 17 ms when no IRQ is wired. Read one report
+per poll, honor TD_STATUS, validate slot IDs and release missing contacts.
+Discard unchanged startup data and pause polling during suspend and
+factory mode while preserving the IRQ path.
+
+Adapted from Raspberry Pi Linux contact tracking and startup filtering:
+https://github.com/raspberrypi/linux/commit/1488dc597465d87b7f04b0243ed46f5bdda9d199
+https://github.com/raspberrypi/linux/commit/b48b6039567d7bb2f7561be44bee7ea9b77c2ec5
+https://github.com/raspberrypi/linux/blob/rpi-6.6.y/drivers/input/touchscreen/edt-ft5x06.c
+
+Upstream-Status: Pending
+Signed-off-by: Riccardo Fiocchi <hwele05@systemelectronics.com>
+---
+
+diff --git a/drivers/input/touchscreen/edt-ft5x06.c b/drivers/input/touchscreen/edt-ft5x06.c
+--- a/drivers/input/touchscreen/edt-ft5x06.c
++++ b/drivers/input/touchscreen/edt-ft5x06.c
+@@ -71,6 +71,7 @@
+ 
+ #define EDT_DEFAULT_NUM_X		1024
+ #define EDT_DEFAULT_NUM_Y		1024
++#define EDT_POLL_INTERVAL_MS		17
+ 
+ enum edt_pmode {
+ 	EDT_PMODE_NOT_SUPPORTED,
+@@ -117,6 +118,9 @@
+ 
+ 	struct mutex mutex;
+ 	bool factory_mode;
++	bool suspended;
++	unsigned int known_ids;
++	int init_td_status;
+ 	enum edt_pmode suspend_mode;
+ 	int threshold;
+ 	int gain;
+@@ -196,6 +200,9 @@
+ 	int i, type, x, y, id;
+ 	int offset, tplen, datalen, crclen;
+ 	int error;
++	unsigned int num_points;
++	unsigned int active_ids = 0;
++	unsigned int released_ids;
+ 
+ 	switch (tsdata->version) {
+ 	case EDT_M06:
+@@ -245,7 +252,24 @@
+ 			goto out;
+ 	}
+ 
+-	for (i = 0; i < tsdata->max_support_points; i++) {
++	num_points = tsdata->max_support_points;
++	if (tsdata->version != EDT_M06) {
++		num_points = rdbuf[2] & 0x0f;
++		if (num_points > tsdata->max_support_points) {
++			dev_err_ratelimited(dev, "Invalid touch count: %u\n",
++					    num_points);
++			goto out;
++		}
++		if (tsdata->init_td_status) {
++			if (tsdata->init_td_status < 0)
++				tsdata->init_td_status = rdbuf[2];
++			if (num_points && rdbuf[2] == tsdata->init_td_status)
++				goto out;
++			tsdata->init_td_status = 0;
++		}
++	}
++
++	for (i = 0; i < num_points; i++) {
+ 		u8 *buf = &rdbuf[i * tplen + offset];
+ 
+ 		type = buf[0] >> 6;
+@@ -264,12 +288,28 @@
+ 			swap(x, y);
+ 
+ 		id = (buf[2] >> 4) & 0x0f;
++		if (id >= tsdata->max_support_points)
++			continue;
+ 
+ 		input_mt_slot(tsdata->input, id);
+ 		if (input_mt_report_slot_state(tsdata->input, MT_TOOL_FINGER,
+-					       type != TOUCH_EVENT_UP))
++					       type != TOUCH_EVENT_UP)) {
+ 			touchscreen_report_pos(tsdata->input, &tsdata->prop,
+ 					       x, y, true);
++			active_ids |= BIT(id);
++		}
++	}
++
++	if (tsdata->version != EDT_M06) {
++		released_ids = tsdata->known_ids & ~active_ids;
++		for (i = 0; i < tsdata->max_support_points; i++) {
++			if (!(released_ids & BIT(i)))
++				continue;
++			input_mt_slot(tsdata->input, i);
++			input_mt_report_slot_state(tsdata->input,
++						   MT_TOOL_FINGER, false);
++		}
++		tsdata->known_ids = active_ids;
+ 	}
+ 
+ 	input_mt_report_pointer_emulation(tsdata->input, true);
+@@ -277,6 +317,16 @@
+ 
+ out:
+ 	return IRQ_HANDLED;
++}
++
++static void edt_ft5x06_ts_poll(struct input_dev *input)
++{
++	struct edt_ft5x06_ts_data *tsdata = input_get_drvdata(input);
++
++	mutex_lock(&tsdata->mutex);
++	if (!tsdata->factory_mode && !tsdata->suspended)
++		edt_ft5x06_ts_isr(0, tsdata);
++	mutex_unlock(&tsdata->mutex);
+ }
+ 
+ static int edt_ft5x06_register_write(struct edt_ft5x06_ts_data *tsdata,
+@@ -578,7 +628,8 @@
+ 		return -EINVAL;
+ 	}
+ 
+-	disable_irq(client->irq);
++	if (client->irq)
++		disable_irq(client->irq);
+ 
+ 	if (!tsdata->raw_buffer) {
+ 		tsdata->raw_bufsize = tsdata->num_x * tsdata->num_y *
+@@ -620,7 +671,8 @@
+ 	kfree(tsdata->raw_buffer);
+ 	tsdata->raw_buffer = NULL;
+ 	tsdata->factory_mode = false;
+-	enable_irq(client->irq);
++	if (client->irq)
++		enable_irq(client->irq);
+ 
+ 	return error;
+ }
+@@ -661,7 +713,8 @@
+ 	tsdata->raw_buffer = NULL;
+ 
+ 	edt_ft5x06_restore_reg_parameters(tsdata);
+-	enable_irq(client->irq);
++	if (client->irq)
++		enable_irq(client->irq);
+ 
+ 	return 0;
+ }
+@@ -1234,17 +1287,30 @@
+ 
+ 	i2c_set_clientdata(client, tsdata);
+ 
+-	irq_flags = irq_get_trigger_type(client->irq);
+-	if (irq_flags == IRQF_TRIGGER_NONE)
+-		irq_flags = IRQF_TRIGGER_FALLING;
+-	irq_flags |= IRQF_ONESHOT;
+-
+-	error = devm_request_threaded_irq(&client->dev, client->irq,
+-					NULL, edt_ft5x06_ts_isr, irq_flags,
+-					client->name, tsdata);
+-	if (error) {
+-		dev_err(&client->dev, "Unable to request touchscreen IRQ.\n");
+-		return error;
++	input_set_drvdata(input, tsdata);
++	if (client->irq) {
++		irq_flags = irq_get_trigger_type(client->irq);
++		if (irq_flags == IRQF_TRIGGER_NONE)
++			irq_flags = IRQF_TRIGGER_FALLING;
++		irq_flags |= IRQF_ONESHOT;
++
++		error = devm_request_threaded_irq(&client->dev, client->irq,
++						NULL, edt_ft5x06_ts_isr, irq_flags,
++						client->name, tsdata);
++		if (error) {
++			dev_err(&client->dev,
++				"Unable to request touchscreen IRQ.\n");
++			return error;
++		}
++	} else {
++		error = input_setup_polling(input, edt_ft5x06_ts_poll);
++		if (error)
++			return error;
++		input_set_poll_interval(input, EDT_POLL_INTERVAL_MS);
++		input_set_min_poll_interval(input, EDT_POLL_INTERVAL_MS);
++		tsdata->init_td_status = -1;
++		dev_info(&client->dev, "Using %d ms touch polling\n",
++			 EDT_POLL_INTERVAL_MS);
+ 	}
+ 
+ 	error = devm_device_add_group(&client->dev, &edt_ft5x06_attr_group);
+@@ -1281,6 +1347,22 @@
+ 	struct edt_ft5x06_ts_data *tsdata = i2c_get_clientdata(client);
+ 	struct gpio_desc *reset_gpio = tsdata->reset_gpio;
+ 	int ret;
++
++	if (!client->irq) {
++		int i;
++
++		mutex_lock(&tsdata->mutex);
++		tsdata->suspended = true;
++		for (i = 0; i < tsdata->max_support_points; i++) {
++			input_mt_slot(tsdata->input, i);
++			input_mt_report_slot_state(tsdata->input,
++						   MT_TOOL_FINGER, false);
++		}
++		tsdata->known_ids = 0;
++		input_mt_report_pointer_emulation(tsdata->input, true);
++		input_sync(tsdata->input);
++		mutex_unlock(&tsdata->mutex);
++	}
+ 
+ 	if (device_may_wakeup(dev))
+ 		return 0;
+@@ -1303,7 +1385,8 @@
+ 	 * settings. Disable the irq to avoid adjusting each host till the
+ 	 * device is back in a full functional state.
+ 	 */
+-	disable_irq(tsdata->client->irq);
++	if (client->irq)
++		disable_irq(client->irq);
+ 
+ 	gpiod_set_value_cansleep(reset_gpio, 1);
+ 	usleep_range(1000, 2000);
+@@ -1325,10 +1408,10 @@
+ 	int ret = 0;
+ 
+ 	if (device_may_wakeup(dev))
+-		return 0;
++		goto out;
+ 
+ 	if (tsdata->suspend_mode == EDT_PMODE_NOT_SUPPORTED)
+-		return 0;
++		goto out;
+ 
+ 	if (tsdata->suspend_mode == EDT_PMODE_POWEROFF) {
+ 		struct gpio_desc *reset_gpio = tsdata->reset_gpio;
+@@ -1365,7 +1448,8 @@
+ 		msleep(300);
+ 
+ 		edt_ft5x06_restore_reg_parameters(tsdata);
+-		enable_irq(tsdata->client->irq);
++		if (client->irq)
++			enable_irq(client->irq);
+ 
+ 		if (tsdata->factory_mode)
+ 			ret = edt_ft5x06_factory_mode(tsdata);
+@@ -1377,6 +1461,13 @@
+ 		gpiod_set_value_cansleep(wake_gpio, 1);
+ 	}
+ 
++out:
++	if (!client->irq && !ret) {
++		mutex_lock(&tsdata->mutex);
++		tsdata->init_td_status = -1;
++		tsdata->suspended = false;
++		mutex_unlock(&tsdata->mutex);
++	}
+ 
+ 	return ret;
+ }

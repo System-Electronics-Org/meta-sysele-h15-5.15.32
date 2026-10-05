@@ -154,3 +154,11 @@ SRC_URI:append = " file://0031-input-goodix-add-polling-mode.patch \
 # In polling mode, read the Goodix buffer once per poll instead of waiting up
 # to 20 ms for data that only an interrupt can announce.
 SRC_URI:append = " file://0033-input-goodix-read-once-per-poll.patch"
+
+# Raspberry Pi 7" panel touch: a FocalTech controller at 0x38 on the panel bus,
+# driven by edt-ft5x06. Like the Waveshare Goodix, it has no interrupt line to
+# the host, so the driver learns to poll, and to release contacts that vanish
+# from a report instead of leaving them stuck down.
+SRC_URI:append = " file://0034-input-edt-ft5x06-add-polling-and-track-contacts.patch \
+    file://0035-dt-bindings-input-edt-ft5x06-make-interrupts-optional.patch \
+    file://rpi-touch.cfg"
