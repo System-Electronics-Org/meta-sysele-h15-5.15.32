@@ -40,10 +40,6 @@
 namespace
 {
 
-constexpr int DISPLAY_WIDTH = 1280;
-constexpr int DISPLAY_HEIGHT = 800;
-// The Waveshare 10.1" panel is 217 mm wide for 1280 pixels: about 5.9 px/mm.
-constexpr double PIXELS_PER_MM = 1280.0 / 217.0;
 constexpr int MAX_SLOTS = 10;
 constexpr int LONG_BITS = 8 * sizeof(long);
 
@@ -155,6 +151,12 @@ class TouchReader
         m_thread = std::thread(&TouchReader::run, this);
     }
 
+    void set_screen_size(int width, int height)
+    {
+        m_width = width;
+        m_height = height;
+    }
+
     void stop()
     {
         m_quit = true;
@@ -214,7 +216,7 @@ class TouchReader
             const int p = static_cast<int>(std::lround(double(v - a.minimum) * (size - 1) / span));
             return std::clamp(p, 0, size - 1);
         };
-        return {scale(x, m_abs_x, DISPLAY_WIDTH), scale(y, m_abs_y, DISPLAY_HEIGHT)};
+        return {scale(x, m_abs_x, m_width), scale(y, m_abs_y, m_height)};
     }
 
     void handle(const input_event &ev)
@@ -328,6 +330,8 @@ class TouchReader
     bool m_multitouch = false;
     input_absinfo m_abs_x{};
     input_absinfo m_abs_y{};
+    int m_width = 0;
+    int m_height = 0;
     Slot m_slots[MAX_SLOTS];
     int m_slot = 0;
     bool m_dropped = false;
@@ -347,6 +351,71 @@ struct Display
     GstElement *appsrc = nullptr;
     int par_n = 1;
     int par_d = 1;
+    int width = 0;
+    int height = 0;
+    double pixels_per_mm = 0;
+    const char *panel = "";
+
+    bool read_mode(GstElement *sink)
+    {
+        gint current_width = 0, current_height = 0;
+        g_object_get(sink, "display-width", &current_width, "display-height", &current_height, NULL);
+        GstPad *pad = gst_element_get_static_pad(sink, "sink");
+        if (!pad)
+            return false;
+        GstCaps *filter = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "BGR", NULL);
+        GstCaps *caps = gst_pad_query_caps(pad, filter);
+        gst_caps_unref(filter);
+        gst_object_unref(pad);
+        if (!caps || gst_caps_is_empty(caps) || gst_caps_is_any(caps))
+        {
+            if (caps)
+                gst_caps_unref(caps);
+            std::fprintf(stderr, "dsi_touch_test: no native BGR display mode\n");
+            return false;
+        }
+
+        caps = gst_caps_make_writable(caps);
+        for (guint i = 0; i < gst_caps_get_size(caps); ++i)
+        {
+            const GstStructure *mode = gst_caps_get_structure(caps, i);
+            gint mode_width = 0, mode_height = 0;
+            if (gst_structure_get_int(mode, "width", &mode_width) &&
+                gst_structure_get_int(mode, "height", &mode_height) &&
+                mode_width == current_width && mode_height == current_height)
+            {
+                GstCaps *selected = gst_caps_copy_nth(caps, i);
+                gst_caps_unref(caps);
+                caps = selected;
+                break;
+            }
+        }
+        caps = gst_caps_truncate(caps);
+        GstStructure *mode = gst_caps_get_structure(caps, 0);
+        if (current_width > 0 && current_height > 0)
+        {
+            gst_structure_fixate_field_nearest_int(mode, "width", current_width);
+            gst_structure_fixate_field_nearest_int(mode, "height", current_height);
+        }
+        gst_structure_fixate_field_nearest_fraction(mode, "pixel-aspect-ratio", 1, 1);
+        caps = gst_caps_fixate(caps);
+        mode = gst_caps_get_structure(caps, 0);
+        const bool have_size = gst_structure_get_int(mode, "width", &width) &&
+                               gst_structure_get_int(mode, "height", &height);
+        gst_structure_get_fraction(mode, "pixel-aspect-ratio", &par_n, &par_d);
+        gst_caps_unref(caps);
+        if (!have_size || width < 2 || height < 2 || par_n <= 0 || par_d <= 0)
+        {
+            std::fprintf(stderr, "dsi_touch_test: invalid display geometry\n");
+            return false;
+        }
+        // Physical widths: Raspberry Pi 7" 154 mm for 800 px, Waveshare 10.1" 217 mm
+        // for 1280 px. Used to size the dot in millimetres.
+        const bool rpi = width == 800 && height == 480;
+        pixels_per_mm = rpi ? 800.0 / 154.0 : 1280.0 / 217.0;
+        panel = rpi ? "Raspberry Pi 7\"" : width == 1280 && height == 800 ? "Waveshare 10.1\"" : "unknown panel";
+        return true;
+    }
 
     bool build(int fps)
     {
@@ -375,26 +444,18 @@ struct Display
             return false;
         }
 
-        // kmssink derives a pixel aspect ratio from the physical size the panel
-        // driver reports, and refuses frames that declare another one, which
-        // videoconvert cannot change. It knows the ratio once started, so the
-        // pipeline is started first and the frames are described with its
-        // value: nothing to update here if the driver's size changes.
+        // kmssink knows the panel mode, and the pixel aspect ratio it derives from
+        // the physical size the panel driver reports, only once started; it
+        // refuses frames that declare another ratio, which videoconvert cannot
+        // change. So the pipeline is started first and the frames take both from
+        // it: nothing to update here when the panel or its driver changes.
         if (gst_element_set_state(pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE)
             return false;
-        par_n = par_d = 1;
-        GstPad *pad = gst_element_get_static_pad(kmssink, "sink");
-        if (GstCaps *sink_caps = gst_pad_query_caps(pad, nullptr))
-        {
-            if (!gst_caps_is_empty(sink_caps))
-                gst_structure_get_fraction(gst_caps_get_structure(sink_caps, 0), "pixel-aspect-ratio", &par_n,
-                                           &par_d);
-            gst_caps_unref(sink_caps);
-        }
-        gst_object_unref(pad);
+        if (!read_mode(kmssink))
+            return false;
 
         GstCaps *caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "BGR", "width", G_TYPE_INT,
-                                            DISPLAY_WIDTH, "height", G_TYPE_INT, DISPLAY_HEIGHT, "framerate",
+                                            width, "height", G_TYPE_INT, height, "framerate",
                                             GST_TYPE_FRACTION, fps, 1, "pixel-aspect-ratio", GST_TYPE_FRACTION,
                                             par_n, par_d, NULL);
         g_object_set(appsrc, "caps", caps, NULL);
@@ -543,12 +604,14 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    const int dot = std::max(2, static_cast<int>(std::lround(opt.size_mm * PIXELS_PER_MM)));
+    touch.set_screen_size(display.width, display.height);
+    const int dot = std::max(2, static_cast<int>(std::lround(opt.size_mm * display.pixels_per_mm)));
     std::printf("dsi_touch_test: %s on %s, %s, x %d..%d, y %d..%d\n", touch.name().c_str(), touch.path().c_str(),
                 touch.multitouch() ? "multi-touch" : "single touch", touch.abs_x().minimum, touch.abs_x().maximum,
                 touch.abs_y().minimum, touch.abs_y().maximum);
     std::printf("dsi_touch_test: dot %d px (%.0f mm), fade %.1f s, %d fps, pixel aspect %d/%d. Ctrl+C to stop.\n", dot,
                 opt.size_mm, opt.fade_s, opt.fps, display.par_n, display.par_d);
+    std::printf("dsi_touch_test: display %dx%d BGR, %s\n", display.width, display.height, display.panel);
     std::fflush(stdout);
 
     touch.start();
@@ -556,7 +619,7 @@ int main(int argc, char **argv)
     using clock = std::chrono::steady_clock;
     const auto period = std::chrono::duration_cast<clock::duration>(std::chrono::duration<double>(1.0 / opt.fps));
     const cv::Scalar red(0, 0, 255);
-    cv::Mat canvas(DISPLAY_HEIGHT, DISPLAY_WIDTH, CV_8UC3, cv::Scalar::all(0));
+    cv::Mat canvas(display.height, display.width, CV_8UC3, cv::Scalar::all(0));
 
     const auto start = clock::now();
     auto previous = start;

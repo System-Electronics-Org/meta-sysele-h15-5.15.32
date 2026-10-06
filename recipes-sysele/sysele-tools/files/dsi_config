@@ -1,25 +1,62 @@
 #!/bin/sh
-# Build the DSI pipeline JSONs from Hailo's vision config.
-# Run it again after a flash: the JSONs are generated, they are not packaged.
-# Usage: dsi_config
+# Build the DSI pipeline JSONs from Hailo's vision config, sized to the panel.
+# The camera output takes the mode of the connected DSI panel, read from DRM:
+# 800x480 for the Raspberry Pi 7", 1280x800 for the Waveshare 10.1".
+# Usage: dsi_config              write the JSONs
+#        dsi_config --if-stale   write them only if missing or sized for another panel
 # Source in $SYSELE_VISION_CONFIG, output in $SYSELE_VAR.
+# The DSI commands run it with --if-stale, so a panel change needs nothing.
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
+IF_STALE=0
 case "$1" in
 -h|--help) usage; exit 0 ;;
+--if-stale) IF_STALE=1 ;;
+'') ;;
+*) echo "dsi_config: unknown argument $1, see dsi_config --help"; exit 2 ;;
 esac
 S=${SYSELE_VISION_CONFIG:-/home/root/apps/webserver/resources/configs/vision_config1.json}
 OUT=${SYSELE_VAR:-/opt/sysele/var}
+
+# The first mode of the connected DSI connector is the panel's native one.
+# Without a panel, keep the size the JSONs always had.
+MODE=""
+for c in /sys/class/drm/card*-DSI-*; do
+    [ "$(cat "$c/status" 2>/dev/null)" = connected ] || continue
+    MODE=$(head -n 1 "$c/modes" 2>/dev/null)
+    break
+done
+case "$MODE" in
+[0-9]*x[0-9]*) W=${MODE%%x*}; H=${MODE#*x}; H=${H%%[!0-9]*} ;;
+*) W=1280; H=800; MODE="" ;;
+esac
+
+if [ "$IF_STALE" = 1 ]; then
+    python3 - "$OUT" "$W" "$H" <<'PY' && exit 0
+import json, sys
+out, w, h = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+for fps in (30, 60):
+    try:
+        r = json.load(open("%s/frontend_dsi_%d.json" % (out, fps)))["application_input_streams"]["resolutions"][0]
+    except Exception:
+        sys.exit(1)
+    if (r.get("width"), r.get("height")) != (w, h):
+        sys.exit(1)
+PY
+fi
+
 [ -f "$S" ] || { echo "dsi_config: $S is missing"; exit 1; }
 mkdir -p "$OUT" || { echo "dsi_config: cannot write into $OUT"; exit 1; }
-python3 - "$S" "$OUT" <<'PY'
+[ -n "$MODE" ] || echo "dsi_config: no DSI panel connected, using ${W}x${H}"
+python3 - "$S" "$OUT" "$W" "$H" <<'PY'
 import json, sys
 c = json.load(open(sys.argv[1]))
+w, h = int(sys.argv[3]), int(sys.argv[4])
 c["input_video"]["sensor_id"] = "SENSOR_1"
-c["application_input_streams"]["resolutions"] = [{"width": 1280, "height": 800, "framerate": 30,
+c["application_input_streams"]["resolutions"] = [{"width": w, "height": h, "framerate": 30,
     "pool_max_buffers": 10, "scaling_mode": "LETTERBOX_MIDDLE"}]
 out = sys.argv[2]
 json.dump(c, open(out + "/frontend_dsi_30.json", "w"), indent=4)
 s = json.dumps(c, indent=4).replace('"framerate": 30', '"framerate": 60')
 open(out + "/frontend_dsi_60.json", "w").write(s)
-print("written " + out + "/frontend_dsi_30.json and " + out + "/frontend_dsi_60.json")
+print("written %s/frontend_dsi_30.json and %s/frontend_dsi_60.json, %dx%d" % (out, out, w, h))
 PY

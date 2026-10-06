@@ -490,6 +490,24 @@
     };
 
     /*
+     * Touch of the Raspberry Pi 7" panel: a FocalTech controller on the
+     * panel connector. It comes with the default panel, as the Goodix comes
+     * with the Waveshare one; the Waveshare tree and overlays switch it off.
+     * There is no interrupt line to the host, so edt-ft5x06 polls it. The
+     * axes are inverted as in the Raspberry Pi overlay; FT5506 rather than
+     * FT5406 gives the panel's ten contact slots in this kernel.
+     */
+    panel_touch: touchscreen@38 {
+        status = "ok";
+        compatible = "edt,edt-ft5506";
+        reg = <0x38>;
+        touchscreen-size-x = <800>;
+        touchscreen-size-y = <480>;
+        touchscreen-inverted-x;
+        touchscreen-inverted-y;
+    };
+
+    /*
      * DSI panel, Raspberry Pi 7" 800x480 by default.
      *
      * The label is what lets astrial-h15-ws101.dts and panel-ws101.dtbo

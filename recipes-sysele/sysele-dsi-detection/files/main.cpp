@@ -3,8 +3,9 @@
  * Astrial H15: camera -> YOLOv8n -> overlay -> DSI.
  *
  * The camera side mirrors /usr/bin/dsi_demo: hailofrontendbinsrc reads
- * /opt/sysele/var/frontend_dsi_30.json. The output is raw BGR sent directly
- * to kmssink; there is no encoder, RTP or UDP path.
+ * /opt/sysele/var/frontend_dsi_30.json. The output is fitted to the DSI mode
+ * reported by kmssink at runtime, then sent directly as raw BGR; there is no
+ * encoder, RTP or UDP path.
  */
 
 #include <gst/app/gstappsrc.h>
@@ -45,8 +46,6 @@ namespace pipeline = hailo_analytics::pipeline;
 static constexpr const char *DEFAULT_FRONTEND_CONFIG = "/opt/sysele/var/frontend_dsi_30.json";
 static constexpr const char *STREAM_ID = "sink0";
 static constexpr const char *TILING_PIPELINE = "tiling_detection_pipeline";
-static constexpr int DISPLAY_WIDTH = 1280;
-static constexpr int DISPLAY_HEIGHT = 800;
 static constexpr int DEFAULT_DISPLAY_FPS = 30;
 
 enum class FaceEffect
@@ -90,11 +89,20 @@ struct InputPipeline
     GstElement *appsink = nullptr;
 };
 
+struct DisplayConfig
+{
+    int width = 0;
+    int height = 0;
+    int par_n = 1;
+    int par_d = 1;
+};
+
 struct OutputPipeline
 {
     GstElement *pipeline = nullptr;
     GstElement *appsrc = nullptr;
     GstElement *fps_text = nullptr;
+    DisplayConfig display;
     std::chrono::steady_clock::time_point last_fps_log{};
 };
 
@@ -328,6 +336,74 @@ static bool build_input_pipeline(const AppConfig &config, InputPipeline &input)
     return true;
 }
 
+static bool read_display_config(GstElement *kmssink, DisplayConfig &display)
+{
+    // Like dsi_clip, ask the opened KMS sink for its mode and pixel aspect
+    // ratio. With can-scale=false, its caps describe native panel sizes.
+    gint current_width = 0, current_height = 0;
+    g_object_get(kmssink, "display-width", &current_width, "display-height", &current_height, NULL);
+    GstPad *pad = gst_element_get_static_pad(kmssink, "sink");
+    if (!pad)
+        return false;
+    GstCaps *filter = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "BGR", NULL);
+    GstCaps *caps = gst_pad_query_caps(pad, filter);
+    gst_caps_unref(filter);
+    gst_object_unref(pad);
+    if (!caps || gst_caps_is_empty(caps) || gst_caps_is_any(caps))
+    {
+        if (caps)
+            gst_caps_unref(caps);
+        std::cerr << "The DSI sink did not report a native BGR display mode" << std::endl;
+        return false;
+    }
+
+    caps = gst_caps_make_writable(caps);
+    // Prefer the current size if the connector exposes more than one mode.
+    // Otherwise the first advertised mode is selected; never assume 1280x800.
+    if (current_width > 0 && current_height > 0)
+    {
+        for (guint i = 0; i < gst_caps_get_size(caps); ++i)
+        {
+            GstStructure *mode = gst_caps_get_structure(caps, i);
+            gint width = 0, height = 0;
+            if (gst_structure_get_int(mode, "width", &width) &&
+                gst_structure_get_int(mode, "height", &height) &&
+                width == current_width && height == current_height)
+            {
+                GstCaps *selected = gst_caps_copy_nth(caps, i);
+                gst_caps_unref(caps);
+                caps = selected;
+                break;
+            }
+        }
+    }
+    caps = gst_caps_truncate(caps);
+    GstStructure *selected = gst_caps_get_structure(caps, 0);
+    if (current_width > 0 && current_height > 0)
+    {
+        gst_structure_fixate_field_nearest_int(selected, "width", current_width);
+        gst_structure_fixate_field_nearest_int(selected, "height", current_height);
+    }
+    gst_structure_fixate_field_nearest_fraction(selected, "pixel-aspect-ratio", 1, 1);
+    caps = gst_caps_fixate(caps);
+    const GstStructure *mode = gst_caps_get_structure(caps, 0);
+    const bool have_size = gst_structure_get_int(mode, "width", &display.width) &&
+                           gst_structure_get_int(mode, "height", &display.height);
+    // Missing PAR means square pixels. A fixed PAR from KMS takes precedence.
+    gst_structure_get_fraction(mode, "pixel-aspect-ratio", &display.par_n, &display.par_d);
+    gst_caps_unref(caps);
+    if (!have_size || display.width < 2 || display.height < 2 ||
+        (display.width & 1) || (display.height & 1) || display.par_n <= 0 || display.par_d <= 0)
+    {
+        std::cerr << "The DSI mode must have positive, even dimensions and a valid pixel aspect ratio"
+                  << std::endl;
+        return false;
+    }
+    std::cout << "[display] detected " << display.width << "x" << display.height
+              << " BGR, pixel aspect ratio " << display.par_n << "/" << display.par_d << std::endl;
+    return true;
+}
+
 static bool build_output_pipeline(const AppConfig &config, OutputPipeline &output)
 {
     output.pipeline = gst_pipeline_new("astrial-analytics-output");
@@ -349,12 +425,6 @@ static bool build_output_pipeline(const AppConfig &config, OutputPipeline &outpu
     g_object_set(queue, "leaky", 2, "max-size-buffers", 3, "max-size-bytes", 0,
                  "max-size-time", static_cast<guint64>(0), NULL);
     g_object_set(convert, "n-threads", 4, NULL);
-
-    GstCaps *display_caps = gst_caps_new_simple(
-        "video/x-raw", "format", G_TYPE_STRING, "BGR", "width", G_TYPE_INT, DISPLAY_WIDTH,
-        "height", G_TYPE_INT, DISPLAY_HEIGHT, "framerate", GST_TYPE_FRACTION, config.framerate, 1, NULL);
-    g_object_set(capsfilter, "caps", display_caps, NULL);
-    gst_caps_unref(display_caps);
 
     if (output.fps_text)
     {
@@ -387,6 +457,25 @@ static bool build_output_pipeline(const AppConfig &config, OutputPipeline &outpu
         std::cerr << "Failed to link appsrc -> BGR -> optional FPS overlay -> kmssink" << std::endl;
         return false;
     }
+
+    // appsrc is live and has no frames yet. PAUSED opens KMS without starting
+    // the camera, so the real panel caps are available before NV12 is produced.
+    add_bus_handler(output.pipeline);
+    if (gst_element_set_state(output.pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE ||
+        g_gstreamer_error ||
+        !read_display_config(kmssink, output.display))
+    {
+        std::cerr << "Failed to detect the DSI panel; check the active panel driver and DRM ownership"
+                  << std::endl;
+        return false;
+    }
+    const DisplayConfig &display = output.display;
+    GstCaps *display_caps = gst_caps_new_simple(
+        "video/x-raw", "format", G_TYPE_STRING, "BGR", "width", G_TYPE_INT, display.width,
+        "height", G_TYPE_INT, display.height, "framerate", GST_TYPE_FRACTION, config.framerate, 1,
+        "pixel-aspect-ratio", GST_TYPE_FRACTION, display.par_n, display.par_d, NULL);
+    g_object_set(capsfilter, "caps", display_caps, NULL);
+    gst_caps_unref(display_caps);
     return true;
 }
 
@@ -539,9 +628,9 @@ class FaceEffectStage : public pipeline::ThreadedStage
 class ContiguousNv12GstSinkStage : public pipeline::ThreadedStage
 {
   public:
-    ContiguousNv12GstSinkStage(std::string name, GstElement *appsrc, int framerate)
+    ContiguousNv12GstSinkStage(std::string name, GstElement *appsrc, int framerate, DisplayConfig display)
         : pipeline::ThreadedStage(std::move(name), 2, true, true), m_appsrc(GST_APP_SRC(appsrc)),
-          m_framerate(framerate)
+          m_framerate(framerate), m_display(display)
     {
     }
 
@@ -556,22 +645,30 @@ class ContiguousNv12GstSinkStage : public pipeline::ThreadedStage
 
         const guint width = source->owner->get_width();
         const guint height = source->owner->get_height();
-        const gsize y_size = source->get_plane_size(0);
-        const gsize uv_size = source->get_plane_size(1);
+        if (width < 2 || height < 2 || (width & 1) || (height & 1))
+        {
+            std::cerr << "[analytics] invalid NV12 dimensions " << width << "x" << height << std::endl;
+            return pipeline::AppStatus::PIPELINE_ERROR;
+        }
+        const bool resize = width != static_cast<guint>(m_display.width) ||
+                            height != static_cast<guint>(m_display.height);
+        const gsize y_size = resize ? static_cast<gsize>(m_display.width) * m_display.height
+                                    : source->get_plane_size(0);
+        const gsize uv_size = resize ? y_size / 2 : source->get_plane_size(1);
         const gsize total_size = y_size + uv_size;
 
         if (!m_caps_set)
         {
             GstCaps *caps = gst_caps_new_simple(
-                "video/x-raw", "format", G_TYPE_STRING, "NV12", "width", G_TYPE_INT, width,
-                "height", G_TYPE_INT, height, "framerate", GST_TYPE_FRACTION, m_framerate, 1,
-                "pixel-aspect-ratio", GST_TYPE_FRACTION, 11, 10, NULL);
+                "video/x-raw", "format", G_TYPE_STRING, "NV12", "width", G_TYPE_INT, m_display.width,
+                "height", G_TYPE_INT, m_display.height, "framerate", GST_TYPE_FRACTION, m_framerate, 1,
+                "pixel-aspect-ratio", GST_TYPE_FRACTION, m_display.par_n, m_display.par_d, NULL);
             gst_app_src_set_caps(m_appsrc, caps);
             gst_caps_unref(caps);
             m_caps_set = true;
-            std::cout << "[analytics] output caps " << width << "x" << height
-                      << " NV12, Y=" << y_size << " UV=" << uv_size
-                      << " strides=" << source->get_plane_stride(0) << "/" << source->get_plane_stride(1)
+            std::cout << "[analytics] camera " << width << "x" << height << " -> display "
+                      << m_display.width << "x" << m_display.height << " NV12"
+                      << (resize ? " (software letterbox)" : " (native size)")
                       << std::endl;
         }
 
@@ -585,18 +682,46 @@ class ContiguousNv12GstSinkStage : public pipeline::ThreadedStage
             gst_buffer_unref(buffer);
             return pipeline::AppStatus::PIPELINE_ERROR;
         }
-        std::memcpy(map.data, source->get_plane_ptr(0), y_size);
-        std::memcpy(map.data + y_size, source->get_plane_ptr(1), uv_size);
+        if (resize)
+        {
+            // Resize after inference, tracking, privacy and overlay, so all
+            // camera-space ROIs stay aligned. The DRM plane cannot scale.
+            cv::Mat input_y(height, width, CV_8UC1, source->get_plane_ptr(0), source->get_plane_stride(0));
+            cv::Mat input_uv(height / 2, width / 2, CV_8UC2, source->get_plane_ptr(1),
+                             source->get_plane_stride(1));
+            cv::Mat output_y(m_display.height, m_display.width, CV_8UC1, map.data, m_display.width);
+            cv::Mat output_uv(m_display.height / 2, m_display.width / 2, CV_8UC2, map.data + y_size,
+                              m_display.width);
+            output_y.setTo(cv::Scalar(16));
+            output_uv.setTo(cv::Scalar(128, 128));
+            const double scale = std::min(static_cast<double>(m_display.width) / width,
+                                          static_cast<double>(m_display.height) / height);
+            // Even sizes and origins keep both chroma components aligned.
+            const int fitted_width = std::max(2, static_cast<int>(width * scale) & ~1);
+            const int fitted_height = std::max(2, static_cast<int>(height * scale) & ~1);
+            const int x = ((m_display.width - fitted_width) / 2) & ~1;
+            const int y = ((m_display.height - fitted_height) / 2) & ~1;
+            cv::Mat target_y = output_y(cv::Rect(x, y, fitted_width, fitted_height));
+            cv::Mat target_uv = output_uv(cv::Rect(x / 2, y / 2, fitted_width / 2, fitted_height / 2));
+            const int interpolation = scale < 1.0 ? cv::INTER_AREA : cv::INTER_LINEAR;
+            cv::resize(input_y, target_y, target_y.size(), 0.0, 0.0, interpolation);
+            cv::resize(input_uv, target_uv, target_uv.size(), 0.0, 0.0, interpolation);
+        }
+        else
+        {
+            std::memcpy(map.data, source->get_plane_ptr(0), y_size);
+            std::memcpy(map.data + y_size, source->get_plane_ptr(1), uv_size);
+        }
         gst_buffer_unmap(buffer, &map);
 
         gsize offsets[GST_VIDEO_MAX_PLANES]{};
         gint strides[GST_VIDEO_MAX_PLANES]{};
         offsets[0] = 0;
         offsets[1] = y_size;
-        strides[0] = static_cast<gint>(source->get_plane_stride(0));
-        strides[1] = static_cast<gint>(source->get_plane_stride(1));
+        strides[0] = resize ? m_display.width : static_cast<gint>(source->get_plane_stride(0));
+        strides[1] = resize ? m_display.width : static_cast<gint>(source->get_plane_stride(1));
         gst_buffer_add_video_meta_full(buffer, GST_VIDEO_FRAME_FLAG_NONE, GST_VIDEO_FORMAT_NV12,
-                                       width, height, 2, offsets, strides);
+                                       m_display.width, m_display.height, 2, offsets, strides);
 
         const GstFlowReturn result = gst_app_src_push_buffer(m_appsrc, buffer);
         if (result != GST_FLOW_OK)
@@ -611,10 +736,12 @@ class ContiguousNv12GstSinkStage : public pipeline::ThreadedStage
   private:
     GstAppSrc *m_appsrc;
     int m_framerate;
+    DisplayConfig m_display;
     bool m_caps_set = false;
 };
 
-static pipeline::PipelinePtr build_analytics_pipeline(GstElement *appsink, GstElement *appsrc, const AppConfig &config)
+static pipeline::PipelinePtr build_analytics_pipeline(GstElement *appsink, GstElement *appsrc,
+                                                      const AppConfig &config, const DisplayConfig &display)
 {
     auto source = pipeline::sources::GstSourceStageBuild::create().set_stage_name("gst_source").buildptr();
     source->add_appsink(STREAM_ID, appsink);
@@ -639,7 +766,7 @@ static pipeline::PipelinePtr build_analytics_pipeline(GstElement *appsink, GstEl
                        .set_stage_name("overlay_stage")
                        .set_queue_size(3)
                        .buildptr();
-    auto dsi_output = std::make_shared<ContiguousNv12GstSinkStage>("dsi_output", appsrc, config.framerate);
+    auto dsi_output = std::make_shared<ContiguousNv12GstSinkStage>("dsi_output", appsrc, config.framerate, display);
 
     pipeline::PipelineBuilder builder;
     builder.add_stage(source, pipeline::StageType::SOURCE)
@@ -686,6 +813,22 @@ static bool start_pipelines(InputPipeline &input, OutputPipeline &output, pipeli
     return true;
 }
 
+static void cleanup_gstreamer(InputPipeline &input, OutputPipeline &output)
+{
+    // Display discovery opens DRM during PAUSED. Release it on every failure
+    // path as well as after a normal run.
+    GstElement **pipelines[] = {&input.pipeline, &output.pipeline};
+    for (GstElement **gst_pipeline : pipelines)
+    {
+        if (*gst_pipeline)
+        {
+            gst_element_set_state(*gst_pipeline, GST_STATE_NULL);
+            gst_object_unref(*gst_pipeline);
+            *gst_pipeline = nullptr;
+        }
+    }
+}
+
 static void stop_and_cleanup(InputPipeline &input, OutputPipeline &output, pipeline::PipelinePtr &analytics)
 {
     std::cout << "Stopping camera..." << std::endl;
@@ -693,9 +836,7 @@ static void stop_and_cleanup(InputPipeline &input, OutputPipeline &output, pipel
     std::cout << "Stopping analytics..." << std::endl;
     analytics->stop();
     std::cout << "Stopping DSI output..." << std::endl;
-    gst_element_set_state(output.pipeline, GST_STATE_NULL);
-    gst_object_unref(input.pipeline);
-    gst_object_unref(output.pipeline);
+    cleanup_gstreamer(input, output);
 }
 
 int main(int argc, char **argv)
@@ -727,25 +868,30 @@ int main(int argc, char **argv)
 
     InputPipeline input;
     OutputPipeline output;
-    if (!build_input_pipeline(config, input) || !build_output_pipeline(config, output))
+    if (!build_output_pipeline(config, output) || !build_input_pipeline(config, input))
+    {
+        cleanup_gstreamer(input, output);
         return 1;
+    }
 
     add_bus_handler(input.pipeline);
-    add_bus_handler(output.pipeline);
 
-    auto analytics = build_analytics_pipeline(input.appsink, output.appsrc, config);
+    auto analytics = build_analytics_pipeline(input.appsink, output.appsrc, config, output.display);
     if (!analytics)
+    {
+        cleanup_gstreamer(input, output);
         return 1;
+    }
 
     if (!start_pipelines(input, output, analytics))
     {
         std::cerr << "Failed to start the direct DSI demo" << std::endl;
-        gst_object_unref(input.pipeline);
-        gst_object_unref(output.pipeline);
+        cleanup_gstreamer(input, output);
         return 1;
     }
 
-    std::cout << "Running detection on DSI at " << config.framerate << " fps, inference every "
+    std::cout << "Running detection on " << output.display.width << "x" << output.display.height
+              << " DSI at " << config.framerate << " fps, inference every "
               << config.inference_interval << " frames, face effect="
               << face_effect_name(config.face_effect) << ", privacy strength=" << config.privacy_strength
               << ", on-screen FPS=" << (config.show_fps ? "on" : "off") << ", "

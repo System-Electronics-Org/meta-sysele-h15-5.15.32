@@ -12,3 +12,7 @@
         touchscreen-swapped-x-y;
     };
 };
+
+&panel_touch {
+    status = "disabled";
+};
