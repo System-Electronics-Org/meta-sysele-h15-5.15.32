@@ -20,28 +20,20 @@ say() { echo "dsi_demo: $*"; }
 # as it is.
 [ -n "${SYSELE_JSON:-}" ] || "$SYSELE_DIR/bin/dsi_config" --if-stale || exit 1
 
-# The sensor and its bus are read from the subdev name, never assumed: the i2c
-# numbering has already changed once.
-SENSOR=""; for n in /sys/class/video4linux/v4l-subdev*; do
-    case "$(cat "$n/name" 2>/dev/null)" in
-        imx678*) SENSOR=$(cat "$n/name"); SUBDEV="/dev/$(basename "$n")" ;;
-    esac
-done
-[ -n "$SENSOR" ] || { say "no imx678 sensor found, not starting"; exit 1; }
-BUS=$(echo "$SENSOR" | sed -n 's/.* \([0-9]*\)-00[0-9a-f]*$/\1/p')
+# 1. the camera. Model, CSI receiver and I2C bus come from the media graph, and
+# the ISP files are pointed at it: an IMX678 or an IMX334 on either connector.
+# A wrong bus is invisible: the auto exposure writes to an empty bus, nobody
+# complains and the image burns out.
+CAMERA=$("$SYSELE_DIR/bin/sysele-camera" --prepare --shell) || exit 1
+eval "$CAMERA"
+SENSOR=$SENSOR_NAME; SUBDEV=$SENSOR_SUBDEV; BUS=$SENSOR_BUS
 ISP=""; for n in /sys/class/video4linux/v4l-subdev*; do
     case "$(cat "$n/name" 2>/dev/null)" in hailo-isp*) ISP="/dev/$(basename "$n")" ;; esac
 done
-
-# 1. the bus guard. This failure is invisible: the auto exposure writes to an
-# empty bus, nobody complains and the image burns out. Atomic write, and nothing
-# is written when the line is already right.
-CFG=/usr/bin/Sensor$(awk -F'"' '/"sensor_id"/ { gsub(/[^0-9]/, "", $4); print $4; exit }' "$JSON" 2>/dev/null | grep -E '^[0-9]+$' || echo 1)_Entry.cfg
-[ -f "$CFG" ] || CFG=/usr/bin/Sensor1_Entry.cfg
-CUR=$(sed -n 's/^sensor_i2c_bus *= *\([0-9]*\).*/\1/p' "$CFG")
-if [ "$CUR" != "$BUS" ]; then
-    say "$(basename "$CFG") says bus $CUR, the sensor is on bus $BUS: fixing it"
-    sed "s|^sensor_i2c_bus *=.*|sensor_i2c_bus = $BUS|" "$CFG" > "$CFG.new" && mv "$CFG.new" "$CFG"
+# The fixed exposure below writes IMX678 registers and line times.
+if [ "$AE_MODE" = "fixed" ] && [ "$SENSOR_MODEL" != "imx678" ]; then
+    say "fixed exposure is implemented for the IMX678 only; using the native auto exposure on the $SENSOR_MODEL"
+    AE_MODE=native
 fi
 
 # 2. the knobs. Flicker goes into the 3A config only when it really changes.
@@ -54,7 +46,7 @@ if [ -w "$AAA" ]; then
 fi
 
 [ -f "$JSON" ] || { say "$JSON is missing, run dsi_config"; exit 1; }
-say "sensor on i2c-$BUS, mode $AE_MODE, flicker $FLICKER, source $JSON"
+say "$SENSOR_MODEL on CSI-RX$SENSOR_INDEX, i2c-$BUS, mode $AE_MODE, flicker $FLICKER, source $JSON"
 
 # 3. the pipeline.
 if [ -n "$DUR" ]; then T="timeout -k 5 -s INT $DUR"; else T=""; fi

@@ -113,25 +113,22 @@ if [ ! -f "$JSON" ]; then
     exit 1
 fi
 
-SENSOR=""
-for n in /sys/class/video4linux/v4l-subdev*; do
-    case "$(cat "$n/name" 2>/dev/null)" in
-        imx678*) SENSOR=$(cat "$n/name"); SUBDEV="/dev/$(basename "$n")" ;;
-    esac
-done
-[ -n "$SENSOR" ] || { say "no IMX678 sensor found"; exit 1; }
-BUS=$(echo "$SENSOR" | sed -n 's/.* \([0-9]*\)-00[0-9a-f]*$/\1/p')
+# The camera, its CSI receiver and its I2C bus come from the media graph, and
+# the ISP files are pointed at it: an IMX678 or an IMX334 on either connector.
+# A wrong bus is a silent failure: the auto exposure writes to an empty bus,
+# nobody complains and the picture burns out.
+CAMERA=$("$SYSELE_DIR/bin/sysele-camera" --prepare --shell) || exit 1
+eval "$CAMERA"
+SENSOR=$SENSOR_NAME; SUBDEV=$SENSOR_SUBDEV; BUS=$SENSOR_BUS
 ISP=""
 for n in /sys/class/video4linux/v4l-subdev*; do
     case "$(cat "$n/name" 2>/dev/null)" in hailo-isp*) ISP="/dev/$(basename "$n")" ;; esac
 done
 
-CFG=/usr/bin/Sensor$(awk -F'"' '/"sensor_id"/ { gsub(/[^0-9]/, "", $4); print $4; exit }' "$JSON" 2>/dev/null | grep -E '^[0-9]+$' || echo 1)_Entry.cfg
-[ -f "$CFG" ] || CFG=/usr/bin/Sensor1_Entry.cfg
-CUR=$(sed -n 's/^sensor_i2c_bus *= *\([0-9]*\).*/\1/p' "$CFG")
-if [ "$CUR" != "$BUS" ]; then
-    say "$(basename "$CFG") uses I2C bus $CUR; sensor detected on bus $BUS, updating it"
-    sed "s|^sensor_i2c_bus *=.*|sensor_i2c_bus = $BUS|" "$CFG" > "$CFG.new" && mv "$CFG.new" "$CFG"
+# The fixed exposure below writes IMX678 registers and line times.
+if [ "$AE_MODE" = "fixed" ] && [ "$SENSOR_MODEL" != "imx678" ]; then
+    say "fixed exposure is implemented for the IMX678 only; using the native auto exposure on the $SENSOR_MODEL"
+    AE_MODE=native
 fi
 
 if [ -w "$AAA" ]; then
@@ -152,7 +149,7 @@ export HAILORT_LOGGER_PATH="$LOG_DIR"
 export MEDIALIB_LOGGER_PATH="$LOG_DIR"
 cd "$LOG_DIR" || { say "cannot enter $LOG_DIR"; exit 1; }
 
-say "sensor on i2c-$BUS, AE mode $AE_MODE, flicker period $FLICKER, ${FPS} fps, inference every ${INFERENCE_INTERVAL} frames, face effect $FACE_EFFECT, strength $PRIVACY_STRENGTH, FPS display $SHOW_FPS, duration $DURATION_ARG, source $JSON"
+say "$SENSOR_MODEL on CSI-RX$SENSOR_INDEX, i2c-$BUS, AE mode $AE_MODE, flicker period $FLICKER, ${FPS} fps, inference every ${INFERENCE_INTERVAL} frames, face effect $FACE_EFFECT, strength $PRIVACY_STRENGTH, FPS display $SHOW_FPS, duration $DURATION_ARG, source $JSON"
 if [ "$SHOW_FPS" = "y" ]; then
     "$APP" --duration "$DUR" --fps "$FPS" --inference-interval "$INFERENCE_INTERVAL" \
         --face-effect "$FACE_EFFECT" --privacy-strength "$PRIVACY_STRENGTH" --show-fps \

@@ -1,0 +1,112 @@
+#!/bin/sh
+# Find the camera and get the ISP ready for it.
+# One camera at a time: IMX678 or IMX334, on either CSI connector.
+#
+# Usage: sysele-camera                 which camera, on which receiver and bus
+#        sysele-camera --prepare       also point the ISP files at that camera
+#        sysele-camera --shell [--prepare]
+#                                      the same as shell assignments, for scripts
+#
+# The receiver is read from the media graph, never assumed from the I2C bus.
+# --prepare writes /usr/bin/Sensor<N>_Entry.cfg: rewritten from the template of
+# the camera model when it describes another model, otherwise only its I2C bus
+# is corrected. /usr/bin/3aconfig.json is replaced by the model's 3A settings
+# only when the model changes, so adjustments made to it are kept.
+usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
+
+PREPARE=0; SHELL_OUT=0
+for a in "$@"; do
+    case "$a" in
+        -h|--help|help) usage; exit 0 ;;
+        --prepare) PREPARE=1 ;;
+        --shell) SHELL_OUT=1 ;;
+        *) echo "sysele-camera: unknown argument $a, see sysele-camera --help" >&2; exit 2 ;;
+    esac
+done
+
+SUPPORTED="imx678 imx334"
+ISP_DIR=${SYSELE_ISP_DIR:-/usr/bin}
+STATE=${SYSELE_VAR:-/opt/sysele/var}/camera_model
+
+say() { [ "$SHELL_OUT" = 1 ] && echo "sysele-camera: $*" >&2 || echo "sysele-camera: $*"; }
+die() { echo "sysele-camera: $*" >&2; exit 1; }
+
+command -v media-ctl > /dev/null 2>&1 || die "media-ctl is missing"
+GRAPH=$(media-ctl -p 2>/dev/null) || die "cannot read the media graph"
+
+# Every supported sensor the kernel bound, as: model index bus name subdev.
+FOUND=""
+for n in /sys/class/video4linux/v4l-subdev*; do
+    name=$(cat "$n/name" 2>/dev/null)
+    model=${name%% *}
+    case " $SUPPORTED " in *" $model "*) ;; *) continue ;; esac
+    bus=$(echo "$name" | sed -n 's/.* \([0-9]*\)-00[0-9a-f]*$/\1/p')
+    # The sensor entity has one link, to the CSI receiver it is wired to.
+    index=$(printf '%s\n' "$GRAPH" | awk -v e="$name" '
+        /^- entity/ { mine = (index($0, ": " e " (") > 0) }
+        mine && /->.*cdns_csi2rx_[0-9]/ { sub(/.*cdns_csi2rx_/, ""); print substr($0, 1, 1); exit }')
+    [ -n "$bus" ] && [ -n "$index" ] || { say "skipping $name: receiver or bus not found"; continue; }
+    FOUND="$FOUND$model $index $bus $name|/dev/$(basename "$n")
+"
+done
+FOUND=$(printf '%s' "$FOUND" | sed '/^$/d')
+
+[ -n "$FOUND" ] || die "no camera found; supported: $SUPPORTED"
+MODELS=$(printf '%s\n' "$FOUND" | awk '{ print $1 }' | sort -u)
+if [ "$(printf '%s\n' "$MODELS" | wc -l)" -gt 1 ]; then
+    LIST=$(printf '%s\n' "$FOUND" | awk '{ printf "%s%s on CSI-RX%s", sep, $1, $2; sep = ", " }')
+    die "two different camera models connected ($LIST): not supported, connect one model only"
+fi
+
+# Two cameras of the same model: the DSI tools use one, the one on CSI-RX1,
+# which is where the single camera has always been.
+LINE=$(printf '%s\n' "$FOUND" | awk '$2 == 1' | head -n 1)
+[ -n "$LINE" ] || LINE=$(printf '%s\n' "$FOUND" | head -n 1)
+[ "$(printf '%s\n' "$FOUND" | wc -l)" -gt 1 ] && say "two cameras found, using the one on CSI-RX$(echo "$LINE" | awk '{ print $2 }')"
+
+MODEL=$(echo "$LINE" | awk '{ print $1 }')
+INDEX=$(echo "$LINE" | awk '{ print $2 }')
+BUS=$(echo "$LINE" | awk '{ print $3 }')
+NAME=$(echo "$LINE" | sed 's/^[^ ]* [^ ]* [^ ]* //; s/|.*//')
+SUBDEV=${LINE##*|}
+
+if [ "$PREPARE" = 1 ]; then
+    CFG=$ISP_DIR/Sensor${INDEX}_Entry.cfg
+    TEMPLATE=$ISP_DIR/${MODEL}_Sensor0_Entry.cfg
+    CUR_NAME=$(sed -n 's/^name *= *"\([^"]*\)".*/\1/p' "$CFG" 2>/dev/null)
+    if [ "$CUR_NAME" != "$MODEL" ]; then
+        [ -f "$TEMPLATE" ] || die "$CFG describes ${CUR_NAME:-nothing} and there is no $TEMPLATE to rewrite it for $MODEL"
+        say "$(basename "$CFG"): ${CUR_NAME:-missing}, rewriting it for $MODEL on I2C bus $BUS"
+        sed "s|^sensor_i2c_bus *=.*|sensor_i2c_bus = $BUS|" "$TEMPLATE" > "$CFG.new" && mv "$CFG.new" "$CFG" ||
+            die "cannot write $CFG"
+    else
+        CUR_BUS=$(sed -n 's/^sensor_i2c_bus *= *\([0-9]*\).*/\1/p' "$CFG")
+        if [ "$CUR_BUS" != "$BUS" ]; then
+            # Silent when wrong: the auto exposure writes to an empty bus and the
+            # picture burns out. So it is checked every time.
+            say "$(basename "$CFG") uses I2C bus $CUR_BUS, the camera is on bus $BUS: correcting it"
+            sed "s|^sensor_i2c_bus *=.*|sensor_i2c_bus = $BUS|" "$CFG" > "$CFG.new" && mv "$CFG.new" "$CFG" ||
+                die "cannot write $CFG"
+        fi
+    fi
+
+    # The image ships the IMX678 3A settings as 3aconfig.json, so a board that
+    # never changed model has nothing to copy.
+    LAST=$(cat "$STATE" 2>/dev/null)
+    [ -n "$LAST" ] || LAST=imx678
+    if [ "$LAST" != "$MODEL" ]; then
+        AAA=$ISP_DIR/3aconfig_${MODEL}.json
+        [ -f "$AAA" ] || die "no $AAA for the $MODEL 3A settings"
+        say "3A settings: $LAST to $MODEL"
+        cp "$AAA" "$ISP_DIR/3aconfig.json.new" && mv "$ISP_DIR/3aconfig.json.new" "$ISP_DIR/3aconfig.json" ||
+            die "cannot write $ISP_DIR/3aconfig.json"
+    fi
+    mkdir -p "$(dirname "$STATE")" && echo "$MODEL" > "$STATE"
+fi
+
+if [ "$SHELL_OUT" = 1 ]; then
+    printf "SENSOR_MODEL=%s\nSENSOR_INDEX=%s\nSENSOR_BUS=%s\nSENSOR_NAME='%s'\nSENSOR_SUBDEV=%s\n" \
+        "$MODEL" "$INDEX" "$BUS" "$NAME" "$SUBDEV"
+else
+    echo "camera $MODEL on CSI-RX$INDEX, I2C bus $BUS ($NAME, $SUBDEV)"
+fi
