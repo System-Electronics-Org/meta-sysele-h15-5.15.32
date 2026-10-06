@@ -17,6 +17,8 @@ case "$FPS" in
 esac
 # The JSONs follow the connected panel: dsi_config rewrites them only when they
 # are missing or sized for another panel.
+# The camera, IMX678 or IMX334 on either connector: point the ISP files at it.
+"${SYSELE_DIR:-/opt/sysele}/bin/sysele-camera" --prepare || exit 1
 "${SYSELE_DIR:-/opt/sysele}/bin/dsi_config" --if-stale || exit 1
 [ -f "$J" ] || { echo "dsi_stream: $J is missing, run dsi_config"; exit 1; }
 echo "fps=$FPS duration=$DUR   (log in $LOG)"

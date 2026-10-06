@@ -21,3 +21,17 @@ do_install:append() {
         fi
     done
 }
+
+# Hailo's setup_imx*.sh scripts switch the ISP to another sensor by copying
+# <sensor>_Sensor0_Entry.cfg and 3aconfig_<sensor>.json over the live files,
+# but the recipe installs neither, so every one of them stops at its first cp.
+# Install the per-sensor templates from the source tree, under the names the
+# scripts expect. The live Sensor<N>_Entry.cfg files above are not touched.
+do_install:append() {
+    for f in ${S}/units/isi/drv/*_Sensor*_Entry.cfg ${S}/units/3av2_src/3aconfig_*.json; do
+        install -m 0644 $f ${D}${bindir}/
+    done
+    for f in imx678_Sensor0_Entry.cfg imx334_Sensor0_Entry.cfg 3aconfig_imx678.json 3aconfig_imx334.json; do
+        [ -f ${D}${bindir}/$f ] || bbfatal "sysele: $f is not in the imaging source tree any more"
+    done
+}

@@ -1,9 +1,12 @@
 #!/bin/sh
-# Build the DSI pipeline JSONs from Hailo's vision config, sized to the panel.
-# The camera output takes the mode of the connected DSI panel, read from DRM:
-# 800x480 for the Raspberry Pi 7", 1280x800 for the Waveshare 10.1".
+# Build the DSI pipeline JSONs from Hailo's vision config, for the camera and the
+# panel that are connected. The camera index is the CSI receiver sysele-camera
+# finds the camera on. The camera output takes the mode of the connected DSI
+# panel, read from DRM: 800x480 for the Raspberry Pi 7", 1280x800 for the
+# Waveshare 10.1".
 # Usage: dsi_config              write the JSONs
-#        dsi_config --if-stale   write them only if missing or sized for another panel
+#        dsi_config --if-stale   write them only if missing, or made for another
+#                                panel or another camera connector
 # Source in $SYSELE_VISION_CONFIG, output in $SYSELE_VAR.
 # The DSI commands run it with --if-stale, so a panel change needs nothing.
 usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
@@ -30,16 +33,23 @@ case "$MODE" in
 *) W=1280; H=800; MODE="" ;;
 esac
 
+# The camera connector, from the media graph. Without a camera, keep the
+# connector the JSONs always used.
+CAMERA=$("${SYSELE_DIR:-/opt/sysele}/bin/sysele-camera" --shell 2>/dev/null) && eval "$CAMERA"
+INDEX=${SENSOR_INDEX:-1}
+
 if [ "$IF_STALE" = 1 ]; then
-    python3 - "$OUT" "$W" "$H" <<'PY' && exit 0
+    python3 - "$OUT" "$W" "$H" "$INDEX" <<'PY' && exit 0
 import json, sys
-out, w, h = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+out, w, h, index = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 for fps in (30, 60):
     try:
-        r = json.load(open("%s/frontend_dsi_%d.json" % (out, fps)))["application_input_streams"]["resolutions"][0]
+        c = json.load(open("%s/frontend_dsi_%d.json" % (out, fps)))
+        r = c["application_input_streams"]["resolutions"][0]
+        sensor = c["input_video"]["sensor_id"]
     except Exception:
         sys.exit(1)
-    if (r.get("width"), r.get("height")) != (w, h):
+    if (r.get("width"), r.get("height")) != (w, h) or sensor != "SENSOR_" + index:
         sys.exit(1)
 PY
 fi
@@ -47,16 +57,18 @@ fi
 [ -f "$S" ] || { echo "dsi_config: $S is missing"; exit 1; }
 mkdir -p "$OUT" || { echo "dsi_config: cannot write into $OUT"; exit 1; }
 [ -n "$MODE" ] || echo "dsi_config: no DSI panel connected, using ${W}x${H}"
-python3 - "$S" "$OUT" "$W" "$H" <<'PY'
+[ -n "${SENSOR_INDEX:-}" ] || echo "dsi_config: no camera found, using the camera connector CSI-RX$INDEX"
+python3 - "$S" "$OUT" "$W" "$H" "$INDEX" <<'PY'
 import json, sys
 c = json.load(open(sys.argv[1]))
 w, h = int(sys.argv[3]), int(sys.argv[4])
-c["input_video"]["sensor_id"] = "SENSOR_1"
+c["input_video"]["sensor_id"] = "SENSOR_" + sys.argv[5]
 c["application_input_streams"]["resolutions"] = [{"width": w, "height": h, "framerate": 30,
     "pool_max_buffers": 10, "scaling_mode": "LETTERBOX_MIDDLE"}]
 out = sys.argv[2]
 json.dump(c, open(out + "/frontend_dsi_30.json", "w"), indent=4)
 s = json.dumps(c, indent=4).replace('"framerate": 30', '"framerate": 60')
 open(out + "/frontend_dsi_60.json", "w").write(s)
-print("written %s/frontend_dsi_30.json and %s/frontend_dsi_60.json, %dx%d" % (out, out, w, h))
+print("written %s/frontend_dsi_30.json and %s/frontend_dsi_60.json, %dx%d, camera on CSI-RX%s"
+      % (out, out, w, h, sys.argv[5]))
 PY
