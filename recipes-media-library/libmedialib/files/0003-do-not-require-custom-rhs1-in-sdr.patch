@@ -1,0 +1,41 @@
+From: System Electronics
+Date: Tue, 6 Oct 2026 12:00:00 +0200
+Subject: [PATCH] medialib: do not require CUSTOM_RHS1 in SDR
+
+IspManager::set_v4l2_controls() sets the sensor WDR mode, then the custom
+short exposure readout timing (CUSTOM_RHS1), then the CSI and MCM modes of the
+ISP, and gives up at the first control that fails.
+
+CUSTOM_RHS1 belongs to DOL HDR and only exists in the drivers of sensors that
+support it. The IMX334 driver does not have it, so with that sensor the call
+fails with EINVAL ("bad ctrl: custom_rhs1"), set_config() returns false, and
+hailofrontendbinsrc leaves before it hands its configuration to the denoise
+element. The first caps event then dereferences the missing configuration in
+gst_hailo_denoise_create_srcpad_caps() and the pipeline crashes with SIGSEGV.
+
+In SDR there is no short exposure to time: a failure there is now a warning,
+and the CSI and MCM modes are still set. In HDR it stays an error. Sensors
+that have the control set it exactly as before.
+
+Upstream-Status: Pending
+---
+--- a/hailo-media-library/media_library/src/isp/isp_manager.cpp
++++ b/hailo-media-library/media_library/src/isp/isp_manager.cpp
+@@ -241,9 +241,16 @@
+         LOGGER__MODULE__ERROR(MODULE_NAME, "Failed to set IMX_WDR");
+         return false;
+     }
++    // The short exposure readout timing only exists for sensors that support
++    // DOL HDR. In SDR a sensor without the control (IMX334) has nothing to set:
++    // going on keeps the CSI and MCM modes below from being skipped.
+     if (!set_custom_rhs1_from_profile())
+     {
+-        return false;
++        if (desc.is_hdr)
++        {
++            return false;
++        }
++        LOGGER__MODULE__WARNING(MODULE_NAME, "CUSTOM_RHS1 not set, not needed in SDR");
+     }
+     if (!m_v4l2_ctrl_manager.ext_ctrl_set(get_csi_ctrl_type(), csi_mode))
+     {
