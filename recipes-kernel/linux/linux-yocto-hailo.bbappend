@@ -162,3 +162,7 @@ SRC_URI:append = " file://0033-input-goodix-read-once-per-poll.patch"
 SRC_URI:append = " file://0034-input-edt-ft5x06-add-polling-and-track-contacts.patch \
     file://0035-dt-bindings-input-edt-ft5x06-make-interrupts-optional.patch \
     file://rpi-touch.cfg"
+
+# Raspberry Pi 7" panel: retry the writes to the panel controller, which now
+# and then NACKs one. A lost backlight write left the panel dark at boot.
+SRC_URI:append = " file://0036-rpi-touchscreen-retry-i2c-writes.patch"
