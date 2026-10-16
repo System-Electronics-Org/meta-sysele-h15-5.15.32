@@ -12,6 +12,11 @@ local_conf_header:
     MACHINE_FEATURES:append = " imx334"
     MACHINE_FEATURES:remove = " imx678"
 
+  bsp_version: |
+    # Readable BSP version shown on the board by sysele-info. The CI exports
+    # SYSELE_BSP_VERSION on a tagged build; a local build honestly says "unreleased".
+    SYSELE_BSP_VERSION ?= "${@os.environ.get('SYSELE_BSP_VERSION', 'unreleased')}"
+
   wget_workaround: |
     # Workaround for fetch failures with wget's default user-agent.
     FETCHCMD_wget = "/usr/bin/env wget -t 2 -T 30 --passive-ftp --user-agent='bitbake/2.0'"

@@ -57,6 +57,10 @@ SYSELE_ROOT_HOME = "/home/root"
 
 # DATETIME changes on every build. Without this the task signature changes too,
 # the recipe rebuilds every time and it invalidates the sstate cache behind it.
+# Readable BSP version: the git tag of a release (v1.2.0). The CI sets it on a tagged
+# build. Anything else says so, which is exactly what a support request needs to hear.
+SYSELE_BSP_VERSION ?= "unreleased"
+
 do_install[vardepsexclude] += "DATETIME"
 
 do_compile() {
@@ -90,6 +94,7 @@ do_install() {
 
   Astrial H15 - System Electronics
 
+    BSP          ${SYSELE_BSP_VERSION}
     Distro       ${DISTRO} ${DISTRO_VERSION}
     Machine      ${MACHINE}
     Built        $built

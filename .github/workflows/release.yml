@@ -1,0 +1,26 @@
+name: Astrial H15 Release
+
+# Una release nasce solo da un tag spinto a mano. La CI costruisce e allega gli
+# artefatti a quel tag: la versione la decide una persona, non il contatore dei run.
+#
+#   git tag -a v1.2.0 -m "..." && git push origin v1.2.0
+#
+# Schema: major = linea Yocto (kirkstone 1, scarthgap 2), minor = cambiamento
+# corposo nostro, patch = il resto. Una candidata si chiama v1.2.0-rc1 ed esce
+# marcata prerelease.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: write
+    with:
+      release: tagged
+      use_cache: false
+    secrets: inherit

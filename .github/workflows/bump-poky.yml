@@ -102,7 +102,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/build.yml
     with:
-      publish: false
+      release: none
       use_cache: false
       ref: ${{ needs.detect-and-open.outputs.branch }}
     secrets: inherit

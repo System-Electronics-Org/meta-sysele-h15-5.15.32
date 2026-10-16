@@ -1,16 +1,23 @@
 name: Astrial H15 Yocto Build (reusable)
 
 # Reusable build. Un solo posto con la logica di build; i chiamanti decidono:
-#   publish   -> se creare tag + release (softprops/action-gh-release)
+#   release   -> cosa pubblicare: none, continuous oppure tagged
 #   use_cache -> se usare la GitHub Actions Cache per SSTATE_DIR + DL_DIR (build dev)
 #   ref       -> branch/commit da compilare (usato dal bump per validare il branch bump/*)
+#
+# Le build automatiche NON creano piu' un tag per ogni giro. Tre canali distinti:
+#   none        solo artifact effimeri del run. Dev build e validazione del bump.
+#   continuous  riscrive l'unica prerelease "continuous": sempre lo stesso URL per
+#               l'ultimo master costruito, nessun tag nuovo, nessun accumulo.
+#   tagged      release vera sul tag che ha innescato il workflow (v1.2.0, v1.2.0-rc1).
+#               La versione la decide una persona spingendo il tag.
 on:
   workflow_call:
     inputs:
-      publish:
-        description: "Se true crea tag + prerelease; se false solo artifact effimeri del run."
-        type: boolean
-        default: false
+      release:
+        description: "none = solo artifact; continuous = riscrive la prerelease continuous; tagged = release sul tag."
+        type: string
+        default: 'none'
       use_cache:
         description: "Se true usa GitHub Actions Cache per sstate-cache + downloads (build dev)."
         type: boolean
@@ -166,6 +173,12 @@ jobs:
           export BB_ISOLATE_NETWORK=0
           export BB_NO_NETWORK=0
 
+          # Versione leggibile del BSP, finisce nel build-info della scheda.
+          # Solo per una release: una build qualunque resta "unreleased".
+          if [ "${{ inputs.release }}" = "tagged" ]; then
+            export SYSELE_BSP_VERSION="${{ github.ref_name }}"
+          fi
+
           # CI-specific build optimizations - reduce log verbosity
           export BITBAKE_UI_OPTS="-k"
           export BB_LOGCONFIG=""
@@ -173,7 +186,7 @@ jobs:
           export BB_DEFAULT_TASK="build"
           export GITHUB_ACTIONS_BUILD=1  # Flag to detect CI environment
 
-          export BB_ENV_PASSTHROUGH_ADDITIONS="GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
+          export BB_ENV_PASSTHROUGH_ADDITIONS="SYSELE_BSP_VERSION GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
 
           # Build using KAS with our Astrial H15 configuration
           set -e  # Exit on any error
@@ -406,14 +419,14 @@ jobs:
           echo "Build logs:               ${LOGS_URL:-not produced}"
 
       - name: Download Build Artifacts for Release
-        if: inputs.publish
+        if: inputs.release != 'none'
         uses: actions/download-artifact@v4
         with:
           name: astrial-h15-yocto-build
           path: ./release-files
 
       - name: Create Compressed Release Archive
-        if: inputs.publish
+        if: inputs.release != 'none'
         run: |
           cd release-files
           # Copy scripts to root level preserving executable permissions
@@ -424,12 +437,20 @@ jobs:
           fi
           # Ensure execute permissions on any scripts in root
           chmod +x *.sh *.py hailo15_* uart_* 2>/dev/null || true
-          tar -czf ../astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz .
+          # Nome stabile per la continuous, cosi' l'asset viene sostituito invece di
+          # accumularsi sulla stessa release. Per una release vera, il nome porta il tag.
+          if [ "${{ inputs.release }}" = "tagged" ]; then
+            NAME="astrial-h15-yocto-build-${{ github.ref_name }}"
+          else
+            NAME="astrial-h15-yocto-build-continuous"
+          fi
+          echo "ARCHIVE_NAME=$NAME" >> "$GITHUB_ENV"
+          tar -czf "../$NAME.tar.gz" .
           cd ..
-          ls -lh astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz
+          ls -lh "$NAME.tar.gz"
 
       - name: Read the board tools version expected by the flashing script
-        if: inputs.publish
+        if: inputs.release != 'none'
         run: |
           set -euo pipefail
           V=$(sed -n 's/^HAILO_BOARD_TOOLS_VERSION="\(.*\)"$/\1/p' \
@@ -442,20 +463,48 @@ jobs:
           echo "BOARD_TOOLS_VERSION=$V" >> "$GITHUB_ENV"
           echo "board tools version: $V"
 
-      - name: Create Release with Compressed Archive
-        if: inputs.publish
+      - name: Update the continuous prerelease
+        if: inputs.release == 'continuous'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v1.0.0.${{ github.run_number }}
+          tag_name: continuous
           target_commitish: ${{ github.sha }}
-          name: Release v1.0.0.${{ github.run_number }}
+          name: Continuous build of ${{ github.ref_name }}
           body: |
+            Latest automatic build of `${{ github.ref_name }}`. **Not a release.**
+
+            This one entry is rewritten on every build, so the link never changes and no
+            tags accumulate. For a fixed version, take a `v*` release instead.
+
+            - Commit: ${{ github.sha }}
+            - Built: ${{ github.event.head_commit.timestamp }}
+            - Board tools required: `hailo15_board_tools` ${{ env.BOARD_TOOLS_VERSION }},
+              from the Hailo Vision Processor Software Package. See the README.
+          files: ${{ env.ARCHIVE_NAME }}.tar.gz
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the release for the pushed tag
+        if: inputs.release == 'tagged'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Astrial H15 BSP ${{ github.ref_name }}
+          body: |
+            **Stack:**
+            - Yocto: kirkstone (poky `yocto-4.0.35`)
+            - meta-hailo: `kirkstone_v5.3.0`
+            - Hailo Vision Processor package: 1.12.0
+            - Kernel: 5.15.32
+
             **Build Information:**
             - Branch: ${{ github.ref_name }}
             - Commit: ${{ github.sha }}
             - Build Date: ${{ github.event.head_commit.timestamp }}
 
-            **Download and extract astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz to get:**
+            **Download and extract ${{ env.ARCHIVE_NAME }}.tar.gz to get:**
             - `core-image-hailo-dev-astrial-h15.wic`: Complete SD card image for initial provisioning or recovery
             - `hailo-update-image-astrial-h15.swu`: SWUpdate package for updating an already running device
             - `fitImage-astrial-h15.bin`: Kernel and device tree
@@ -475,7 +524,9 @@ jobs:
             [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/) and
             install it as described in the README. `program_spi_flash.sh` checks for it and
             stops with instructions if it is missing.
-          files: astrial-h15-yocto-build-v1.0.0.${{ github.run_number }}.tar.gz
-          prerelease: true
+          files: ${{ env.ARCHIVE_NAME }}.tar.gz
+          # Una candidata si marca col suffisso del tag, v1.2.0-rc1, che semver
+          # prevede e che ordina prima di v1.2.0.
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
