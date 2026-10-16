@@ -1,0 +1,57 @@
+From: System Electronics
+Date: Wed, 7 Oct 2026 10:00:00 +0200
+Subject: [PATCH] drm/panel: rpi-touchscreen: retry the i2c writes
+
+The panel controller at 0x45 now and then NACKs a write (-EREMOTEIO) while
+still ACKing reads. Each write was tried once: a lost REG_PWM write in
+enable() left the backlight off, with the video running, until the next
+modeset. Retry each write up to five times, as
+0001-rpi-touchscreen-retry-reg-id-read.patch does for the ID read and
+0008-panel-waveshare-check-and-retry-mcu-writes.patch for the Waveshare
+panel.
+
+---
+--- a/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
++++ b/drivers/gpu/drm/panel/panel-raspberrypi-touchscreen.c
+@@ -223,14 +223,37 @@ static int rpi_touchscreen_i2c_read(struct rpi_touchscreen *ts, u8 reg)
+ 	return i2c_smbus_read_byte_data(ts->i2c, reg);
+ }
+ 
++/*
++ * The panel controller now and then NACKs a write while still ACKing reads.
++ * A lost write is silent and lasting: a lost REG_PWM write in enable() leaves
++ * the backlight off until the next modeset. Retry a few times, in the same
++ * shape as the Atmel ID read in probe().
++ */
+ static void rpi_touchscreen_i2c_write(struct rpi_touchscreen *ts,
+ 				      u8 reg, u8 val)
+ {
+-	int ret;
++	int ret, i;
++
++	for (i = 0; i < 5; i++) {
++		ret = i2c_smbus_write_byte_data(ts->i2c, reg, val);
++		if (!ret) {
++			if (i)
++				dev_info(&ts->dsi->dev,
++					 "I2C write 0x%02x=0x%02x succeeded after %d attempts\n",
++					 reg, val, i + 1);
++			return;
++		}
++
++		dev_warn(&ts->dsi->dev,
++			 "I2C write 0x%02x=0x%02x attempt %d/5 failed: %d\n",
++			 reg, val, i + 1, ret);
++
++		if (i < 4)
++			usleep_range(2000, 3000);
++	}
+ 
+-	ret = i2c_smbus_write_byte_data(ts->i2c, reg, val);
+-	if (ret)
+-		dev_err(&ts->dsi->dev, "I2C write failed: %d\n", ret);
++	dev_err(&ts->dsi->dev, "I2C write 0x%02x=0x%02x failed after 5 attempts: %d\n",
++		reg, val, ret);
+ }
+ 
+ static int rpi_touchscreen_write(struct rpi_touchscreen *ts, u16 reg, u32 val)
