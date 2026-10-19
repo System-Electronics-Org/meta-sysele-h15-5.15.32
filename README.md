@@ -81,7 +81,7 @@ MIT, granted by System Electronics BU System Ceramics S.p.a. See `LICENSE`.
 ### What You Need
 - Astrial H15 board + compatible CM4/CM5 carrier board
 - Ubuntu 20.04+ host computer 
-- FTDI USB-to-serial cable
+- FTDI USB-to-serial cable, **3V3 signalling, not 5V**
 - Ethernet cable
 - Internet connection
 
@@ -128,7 +128,7 @@ before touching the board and tells you so.
 
 **Download Hailo board tools:**
 Go to [Hailo Developer Zone](https://hailo.ai/developer-zone/software-downloads/) and download the Hailo **Vision Processor** Software Package for Hailo-15H. Extract it and copy the
-`hailo15_board_tools-1.12.0-py3-none-any.whl` file to your release folder.
+`hailo15_board_tools-<version>-py3-none-any.whl` file to your release folder.
 
 Take it from the Vision Processor package, not from the Accelerators section: Hailo-10 is a
 different device family and ships different board tools. Whatever you download is the right
@@ -146,7 +146,7 @@ you want it to survive when you delete an old one.
 cd ~/astrial/flashing
 python3 -m venv hailo15_env
 source hailo15_env/bin/activate
-pip install /path/to/hailo15_board_tools-1.12.0-py3-none-any.whl tftpy
+pip install /path/to/hailo15_board_tools-<version>-py3-none-any.whl tftpy
 sudo apt-get install u-boot-tools
 ```
 
@@ -173,14 +173,12 @@ Do all of this with the board **unpowered**. Nothing here needs it on, and the D
 at power-on.
 
 1. Mount the Astrial H15 SoM on your carrier board.
-2. Connect the FTDI cable to the **40-pin header (40PH)**: GND to pin 6, TX to pin 29, RX to pin 7.
+2. Connect the FTDI cable to the **40-pin header (40PH)**: GND to pin 6, TX to pin 29, RX to
+   pin 7. The cable must be a **3V3** one. A 5V cable can damage the board.
 3. Set the carrier board's GPIO voltage to **1.8V**.
 4. Set the DIP switches to programming mode: **switch 1 ON, switch 2 OFF**.
 
 ![1.8V GPIO Voltage](docs/images/1v8.jpg)
-
-No Ethernet cable yet. It is not needed to flash the bootloader, and on a PoE carrier plugging it in
-powers the board up, which is the opposite of what this step needs.
 
 ### Step 4: Flash the Bootloader
 
@@ -192,6 +190,10 @@ Power the board now, either from the carrier's own supply or over PoE. Then:
 
 Run it from the directory where you extracted the release, with the virtual environment from Step 2
 active. It takes about five minutes and ends with `SPI Flash Programming Completed Successfully`.
+
+If the board is not detected, check the serial device first. **On WSL the USB serial adapter has to
+be attached to the Linux side**, with `usbipd`, or `/dev/ttyUSB0` never appears no matter how the
+cable is wired.
 
 This writes the whole SPI-NOR set: SCU bootloader and firmware, U-Boot and its device tree, TF-A and
 the customer certificate. They are a matched set and are always written together.
@@ -208,7 +210,7 @@ there, and a third for later updates. Pick one now and prepare it with the board
 |---|---|---|
 | **TFTP** | an Ethernet cable and a TFTP server on your host | eMMC or microSD, blank or not |
 | **SD card** | a card reader on your host | microSD |
-| SWU | a board that already runs | updates, not first installation |
+| SWU | a board that already runs Linux | updates. Not reachable from the boot menu on this board |
 
 TFTP is the one to prefer if you have the cable: it needs no card reader, it writes to a blank eMMC,
 and it puts the image where the board boots from in production.
@@ -232,8 +234,10 @@ sync
 Replace `/dev/sdX` with your card reader's device, and check it twice: `dd` writes wherever you point
 it. Then insert the card in the carrier.
 
-**SWU** is for updating a board that already boots. The `.swu` file in the release is for that, not
-for a first installation.
+**SWU** is not a route for a first installation here. The release does ship a `.swu`, but SWUpdate
+is not enabled in this board's U-Boot, so there is no SWUpdate entry in the boot menu: the file is
+meant to be applied from a running Linux system. We have not exercised that path on Astrial, so for
+now treat it as an update mechanism to be documented, not as a way to program a blank board.
 
 ### Step 6: Power On and Install
 
