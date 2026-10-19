@@ -6,16 +6,14 @@
 
 ## About this layer
 
-`meta-sysele-bsp` is the System Electronics BSP layer for the **Astrial H15** System on Module
-(Hailo-15H). It sits on top of Hailo's layers and adds the Astrial machine, its device trees, the
+`meta-sysele-bsp` is the System Electronics BSP layer for the **Astrial H15** System on Module. 
+It sits on top of Hailo's layers and adds the Astrial machine, its device trees, the
 U-Boot and kernel integration, the on-board tools in `/opt/sysele` and the example applications.
 
 ### Maintainer
 
-Riccardo Fiocchi, System Electronics. Send patches as pull requests against the default branch, or by
-email to <hwele05@systemelectronics.com>. Every patch is reviewed before it is merged; a patch that
-changes the device tree or the U-Boot environment should say which memory has to be reflashed, the
-SPI-NOR or the `.wic`.
+System Electronics. Send patches as pull requests against the default branch, or by
+email to Riccardo Fiocchi <hwele05@systemelectronics.com>. Every patch is reviewed before it is merged.
 
 ### Dependencies
 
