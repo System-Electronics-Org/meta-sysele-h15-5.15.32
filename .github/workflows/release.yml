@@ -1,4 +1,5 @@
 name: Astrial H15 Release
+run-name: Astrial H15 Release • ${{ github.ref_name }}
 
 # Una release nasce solo da un tag spinto a mano. La CI costruisce e allega gli
 # artefatti a quel tag: la versione la decide una persona, non il contatore dei run.

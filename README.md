@@ -2,8 +2,6 @@
 
 ## System Electronics Hailo-15 Development Platform
 
-### Version 1.0
-
 ---
 
 ## About this layer
@@ -92,7 +90,7 @@ MIT, granted by System Electronics BU System Ceramics S.p.a. See `LICENSE`.
 
 ### Step 1: Download Release Package
 
-Go to [releases page](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/releases) and download the latest `astrial-h15-yocto-build-<version>.tar.gz` file.
+Go to [releases page](https://github.com/System-Electronics-Org/meta-sysele-astrial-h15/releases) and download the latest `astrial-h15-yocto-build-<version>.tar.gz` file.
 
 Extract it on your host computer:
 ```bash
@@ -329,7 +327,7 @@ For rapid deployment without building from source, you can use the prebuilt imag
 
 **Download Prebuilt Images:**
 
-Go to the [releases page](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/releases) and download the latest release artifact. The artifact is a zip file containing all the necessary files, including the `.wic` images.
+Go to the [releases page](https://github.com/System-Electronics-Org/meta-sysele-astrial-h15/releases) and download the latest release artifact. The artifact is a zip file containing all the necessary files, including the `.wic` images.
 
 **Available Images:**
 - `core-image-hailo-dev-astrial-h15.wic` - Complete development image with AI tools
@@ -358,7 +356,7 @@ cd meta-hailo-soc
 3. **Clone System Electronics Customization Layer**
 
 ```bash
-git clone https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32.git meta-sysele-bsp
+git clone https://github.com/System-Electronics-Org/meta-sysele-astrial-h15.git meta-sysele-bsp
 ```
 
 4. **Secure Boot Configuration**
@@ -848,7 +846,7 @@ For technical support:
 ### Technical Support
 
 **System Electronics**
-- **GitHub Issues**: [https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/issues](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/issues)
+- **GitHub Issues**: [https://github.com/System-Electronics-Org/meta-sysele-astrial-h15/issues](https://github.com/System-Electronics-Org/meta-sysele-astrial-h15/issues)
 - **Website**: [https://www.systemelectronics.ai/en](https://www.systemelectronics.ai/en)
 
 ### Documentation Updates
@@ -857,8 +855,8 @@ This documentation is regularly updated. Check the GitHub repository for the lat
 
 ### Community Resources
 
-- **Main Repository**: [https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32)
-- **Prebuilt Images**: [https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/releases](https://github.com/System-Electronics-Org/meta-sysele-h15-5.15.32/releases)
+- **Main Repository**: [https://github.com/System-Electronics-Org/meta-sysele-astrial-h15](https://github.com/System-Electronics-Org/meta-sysele-astrial-h15)
+- **Prebuilt Images**: [https://github.com/System-Electronics-Org/meta-sysele-astrial-h15/releases](https://github.com/System-Electronics-Org/meta-sysele-astrial-h15/releases)
 
 ---
 
