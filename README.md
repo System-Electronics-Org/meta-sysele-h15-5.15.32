@@ -47,13 +47,12 @@ The Hailo side comes from the **Hailo Vision Processor Software Package 1.12.0**
 
 ### Branches and versions
 
-Branches are named after the Yocto release, as is usual for BSP layers:
+Branches are named after the Yocto release they target, as is usual for BSP layers: the name of a
+branch says which world it builds for, and stays true for as long as the branch lives.
 
-| Branch | What it is |
-|---|---|
-| `kirkstone` | the live line |
-| `kirkstone-vpu-1.12` | maintenance, created only when the live line moves to a newer Hailo stack |
-| `scarthgap` | when the Hailo stack moves to that Yocto release |
+The live line is `kirkstone`. When it moves on, to a newer Hailo stack or a newer Yocto release, the
+line left behind stays as a maintenance branch named after what it carries, for example
+`kirkstone-vpu-1.12`.
 
 Releases are tagged `vMAJOR.MINOR.PATCH`:
 
@@ -90,10 +89,33 @@ MIT, granted by System Electronics BU System Ceramics S.p.a. See `LICENSE`.
 
 Go to [releases page](https://github.com/System-Electronics-Org/meta-sysele-astrial-h15/releases) and download the latest `astrial-h15-yocto-build-<version>.tar.gz` file.
 
-Extract it on your host computer:
+**The archive has no top-level directory**: it unpacks into whatever directory you are in. Give it
+one of its own, and keep one directory per release, so you can tell two of them apart later and go
+back to an older one without downloading it again:
+
 ```bash
-tar -xzf astrial-h15-yocto-build-<version>.tar.gz
+mkdir -p ~/astrial/flashing/<version>/release
+cd ~/astrial/flashing/<version>
+tar -xzf ~/Downloads/astrial-h15-yocto-build-<version>.tar.gz -C release
 ```
+
+That leaves you with:
+
+```
+~/astrial/flashing/
+  hailo15_env/                                  the virtual environment from Step 2, shared
+  <version>/
+    astrial-h15-yocto-build-<version>.tar.gz
+    release/
+      program_spi_flash.sh                      run the scripts from here
+      hailo15_spi_flash_program
+      uart_boot_fw_loader
+      tftp_server.py
+      meta-hailo-soc/build/tmp/deploy/images/astrial-h15/   the images and binaries
+```
+
+The scripts find the images through a path relative to themselves, so **run them from inside
+`release/`**. From one directory up they will not find anything.
 
 **✓ The tar.gz contains the bootloader, the OS image and all the scripts.**
 
@@ -112,16 +134,30 @@ Take it from the Vision Processor package, not from the Accelerators section: Ha
 different device family and ships different board tools. Whatever you download is the right
 one if it contains a `hailo15_board_tools-*.whl`.
 
-The version must match the Hailo stack this release is built against, currently **1.12.0**.
-`program_spi_flash.sh` warns if the installed one differs.
+The version must match the Hailo stack of the release you downloaded, and that changes from one
+release to the next. **Check the release notes**: every release lists its stack, the Hailo Vision
+Processor package among them, and that is the version of the wheel to take.
+`program_spi_flash.sh` warns if the installed one differs, but it cannot fetch the right one for you.
+
+Create it **next to** the release directories, not inside one: it is the same for every release and
+you want it to survive when you delete an old one.
 
 ```bash
+cd ~/astrial/flashing
 python3 -m venv hailo15_env
 source hailo15_env/bin/activate
-pip install hailo15_board_tools-1.12.0-py3-none-any.whl
-pip install tftpy
+pip install /path/to/hailo15_board_tools-1.12.0-py3-none-any.whl tftpy
 sudo apt-get install u-boot-tools
 ```
+
+Activate it again in every new shell before running any of the scripts:
+
+```bash
+source ~/astrial/flashing/hailo15_env/bin/activate
+```
+
+The scripts invoke the Hailo tools through `sudo $(which python3)`, so without the environment active
+they pick the system Python and fail to find the package.
 
 Configure USB permissions:
 ```bash
@@ -131,53 +167,102 @@ EOF
 sudo udevadm control --reload-rules
 ```
 
-### Step 3: Setup Hardware
+### Step 3: Set Up the Hardware
 
-**Physical connections:**
-1. Mount Astrial H15 SoM on your carrier board
-2. Connect FTDI cable: GND→Pin6, TX→Pin29, RX→Pin7
-3. Connect Ethernet cable between host and board
-4. Set the carrier board's GPIO voltage to 1.8V
-5. **Do NOT power on yet**
+Do all of this with the board **unpowered**. Nothing here needs it on, and the DIP switches are read
+at power-on.
+
+1. Mount the Astrial H15 SoM on your carrier board.
+2. Connect the FTDI cable to the **40-pin header (40PH)**: GND to pin 6, TX to pin 29, RX to pin 7.
+3. Set the carrier board's GPIO voltage to **1.8V**.
+4. Set the DIP switches to programming mode: **switch 1 ON, switch 2 OFF**.
 
 ![1.8V GPIO Voltage](docs/images/1v8.jpg)
 
-**DIP switch configuration for programming:**
-- Switch 1: **ON** 
-- Switch 2: **OFF**
+No Ethernet cable yet. It is not needed to flash the bootloader, and on a PoE carrier plugging it in
+powers the board up, which is the opposite of what this step needs.
 
-### Step 4: Burn Bootloader
+### Step 4: Flash the Bootloader
 
-- **Turn on the board now**
+Power the board now, either from the carrier's own supply or over PoE. Then:
 
 ```bash
 ./program_spi_flash.sh
 ```
 
-Wait for "Programming completed successfully" message (~5 minutes).
+Run it from the directory where you extracted the release, with the virtual environment from Step 2
+active. It takes about five minutes and ends with `SPI Flash Programming Completed Successfully`.
 
-**Switch DIP switches to normal boot:**
-- Switch 1: **OFF**
-- Switch 2: **OFF**
+This writes the whole SPI-NOR set: SCU bootloader and firmware, U-Boot and its device tree, TF-A and
+the customer certificate. They are a matched set and are always written together.
 
-### Step 5: Burn SD Card
+When it finishes, **power the board down** and set the DIP switches back to normal boot:
+**switch 1 OFF, switch 2 OFF**.
+
+### Step 5: Choose How to Write the System
+
+The bootloader is in place, but the board has no operating system yet. There are two ways to put one
+there, and a third for later updates. Pick one now and prepare it with the board still off.
+
+| Route | What you need | Writes to |
+|---|---|---|
+| **TFTP** | an Ethernet cable and a TFTP server on your host | eMMC or microSD, blank or not |
+| **SD card** | a card reader on your host | microSD |
+| SWU | a board that already runs | updates, not first installation |
+
+TFTP is the one to prefer if you have the cable: it needs no card reader, it writes to a blank eMMC,
+and it puts the image where the board boots from in production.
+
+**If you chose TFTP**, connect the Ethernet cable between host and board now, set your host to the
+static address `10.0.0.2`, and start the server. The board uses `10.0.0.1`. Full instructions are in
+[Setting Up TFTP Server](#setting-up-tftp-server).
+
+> On a PoE carrier the Ethernet cable also carries power. Either power the board from PoE alone, or
+> disable PoE on the carrier and keep using its own supply. Do not leave both: decide which one feeds
+> the board before plugging the cable in.
+
+**If you chose the SD card**, write it now, from the release you extracted in Step 1:
 
 ```bash
-sudo dd if=meta-hailo-soc/build/tmp/deploy/images/astrial-h15core-image-hailo-dev-astrial-h15.wic of=/dev/sdX bs=4M status=progress
+sudo dd if=meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15.wic \
+        of=/dev/sdX bs=4M status=progress
 sync
 ```
 
-**Replace `/dev/sdX` with your actual SD card device!**
+Replace `/dev/sdX` with your card reader's device, and check it twice: `dd` writes wherever you point
+it. Then insert the card in the carrier.
 
-### Step 6: Boot Board
+**SWU** is for updating a board that already boots. The `.swu` file in the release is for that, not
+for a first installation.
 
-1. Insert SD card into carrier board
-2. Connect serial terminal: `sudo picocom --baud 115200 /dev/ttyUSB0`
-3. Power on board
-4. Select "Boot from SD Card" from menu (or use "Autodetect")
-5. Wait for login prompt: `root@astrialh15:~#`
+### Step 6: Power On and Install
 
-**Login: root/root**
+Open the serial terminal first, so you see the board from the start:
+
+```bash
+sudo picocom --baud 115200 /dev/ttyUSB0
+```
+
+Power the board on. U-Boot shows its boot menu.
+
+**If you chose TFTP**, pick the entry that matches where you want the system:
+
+- `Update eMMC (wic) from TFTP`
+- `Update SDCARD (wic) from TFTP`
+
+The board downloads the image into RAM and writes it from the first block, so the target does not
+need to be formatted or even written before. It takes a few minutes, and the menu comes back when it
+is done. Then boot it: `Boot from eMMC` or `Boot from SD Card`.
+
+**If you wrote an SD card**, pick `Boot from SD Card`.
+
+Either way you end at the login prompt:
+
+```
+root@astrialh15:~#
+```
+
+**Login: root, password root.**
 
 ### Step 7: Verify Everything Works
 
@@ -596,23 +681,15 @@ sudo picocom --baud 115200 /dev/ttyUSB0
 
 Power on the board. You should see the U-Boot boot menu:
 
-```
-*** U-Boot Boot Menu ***
+The menu lists the ways to boot and the ways to write the storage. The ones that write are:
 
-   Autodetect
-   Boot from SD Card
-   Boot from eMMC
-   Update SD (wic) from TFTP
+```
    Update eMMC (wic) from TFTP
-   Update SD (partitions) from TFTP
-   Update eMMC (partitions) from TFTP
-   Boot from NFS
-   SWUpdate
-   SWUpdate AB board init
-   U-Boot console
-
-Press UP/DOWN to move, ENTER to select, ESC/CTRL+C to quit
+   Update SDCARD (wic) from TFTP
 ```
+
+Move with UP and DOWN, select with ENTER. Read the entry rather than counting positions: the menu
+gains and loses entries between releases, so a position is not a stable way to refer to one.
 
 4. **Configure Boot Environment** (Optional)
 
@@ -630,7 +707,7 @@ saveenv
 
 5. **Program eMMC**
 
-**IMPORTANT**: From the U-Boot menu, select exactly **"Update eMMC (wic) from TFTP"** (option 3).
+**IMPORTANT**: From the U-Boot menu, select **"Update eMMC (wic) from TFTP"**, by name.
 
 The system will:
 - Download `core-image-hailo-dev-astrial-h15.wic` via TFTP
@@ -674,7 +751,7 @@ MMC write: dev # 1, block # 0, count 4474157 ...
 - **Do NOT interrupt**: The process may appear frozen during eMMC write - this is normal
 - **Total time**: Allow 10-15 minutes total for the complete process
 
-**Note**: If you see `Filename 'fitImage'` instead of the .wic file, you selected the wrong menu option. Use `bootmenu` command to return to the menu and select option 3.
+**Note**: If you see `Filename 'fitImage'` instead of the .wic file, you selected the wrong menu option. Use the `bootmenu` command to return to the menu and select "Update eMMC (wic) from TFTP".
 
 ---
 
@@ -795,7 +872,7 @@ If you see TFTP downloading `fitImage` instead of `core-image-hailo-dev-astrial-
 **Solution**: 
 1. Press Ctrl+C to interrupt the boot process
 2. Run `bootmenu` command to return to the boot menu  
-3. Select exactly **"Update eMMC (wic) from TFTP"** (option 3)
+3. Select exactly **"Update eMMC (wic) from TFTP"**
 4. Verify the TFTP output shows the .wic filename
 
 #### Boot Menu Not Appearing
