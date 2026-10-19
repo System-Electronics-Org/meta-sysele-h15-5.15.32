@@ -9,8 +9,12 @@ on:
   workflow_dispatch:
   push:
     branches:
+      # kirkstone e' il nome verso cui andiamo; master resta finche' la rinomina non e'
+      # fatta, cosi' il passaggio non spegne la CI.
+      - kirkstone
       - master
   schedule:
+    # Canarino: dice se master compila ancora. Non pubblica nulla di permanente.
     - cron: '0 2 */14 * *'  # Every 2 weeks at 2 AM UTC (only on default branch)
 
 jobs:
@@ -19,6 +23,6 @@ jobs:
     permissions:
       contents: write
     with:
-      publish: true
+      release: continuous
       use_cache: false
     secrets: inherit

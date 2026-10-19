@@ -6,6 +6,81 @@
 
 ---
 
+## About this layer
+
+`meta-sysele-bsp` is the System Electronics BSP layer for the **Astrial H15** System on Module
+(Hailo-15H). It sits on top of Hailo's layers and adds the Astrial machine, its device trees, the
+U-Boot and kernel integration, the on-board tools in `/opt/sysele` and the example applications.
+
+### Maintainer
+
+Riccardo Fiocchi, System Electronics. Send patches as pull requests against the default branch, or by
+email to <hwele05@systemelectronics.com>. Every patch is reviewed before it is merged; a patch that
+changes the device tree or the U-Boot environment should say which memory has to be reflashed, the
+SPI-NOR or the `.wic`.
+
+### Dependencies
+
+| Layer | Provides what we append to |
+|---|---|
+| `core` (poky, `yocto-4.0.35`) | the base |
+| `meta-hailo-bsp` | `linux-yocto-hailo`, `hailo-secureboot-assets`, `core-image-hailo-dev` |
+| `meta-hailo-media-library` | `libmedialib`, `libgstmedialib`, `expected` |
+
+Yocto release: **kirkstone**. Declared in `conf/layer.conf` through `LAYERSERIES_COMPAT` and
+`LAYERDEPENDS`, so a build without those layers fails instead of silently ignoring our bbappends.
+
+The Hailo side comes from the **Hailo Vision Processor Software Package 1.12.0**, which also pins
+`meta-hailo` at `kirkstone_v5.3.0` and the kernel at 5.15.32.
+
+### What is in here
+
+| Directory | Contents |
+|---|---|
+| `conf/machine/` | the `astrial-h15` machine definition |
+| `conf/layer.conf` | collection name, dependencies, Yocto compatibility, layer version |
+| `kas/` | build configuration: machine, VPU base, cache, poky and meta-hailo pins |
+| `recipes-bsp/u-boot/` | U-Boot board support and device tree, including the DDR configuration |
+| `recipes-kernel/linux/` | kernel device tree and the patches applied on top of `linux-yocto-hailo` |
+| `recipes-sysele/` | `sysele-tools` (the `/opt/sysele` toolbox) and the DSI example applications |
+| `recipes-media-library/`, `recipes-gstreamer/` | camera and video pipeline integration |
+| `recipes-core/`, `recipes-media-library/` | image and hostname customisations |
+| `scripts/` | host-side flashing and TFTP helpers |
+| `wic/` | SD card image layout |
+| `docs/images/` | pictures used by this README |
+
+### Branches and versions
+
+Branches are named after the Yocto release, as is usual for BSP layers:
+
+| Branch | What it is |
+|---|---|
+| `kirkstone` | the live line |
+| `kirkstone-vpu-1.12` | maintenance, created only when the live line moves to a newer Hailo stack |
+| `scarthgap` | when the Hailo stack moves to that Yocto release |
+
+Releases are tagged `vMAJOR.MINOR.PATCH`:
+
+- **major** is the platform line: kirkstone is 1, scarthgap will be 2. Moving Yocto release breaks
+  compatibility for anyone building on top, so it is a major.
+- **minor** is a substantial change on our side, which in practice means picking up a new Hailo
+  Vision Processor package.
+- **patch** is everything else.
+
+A release candidate is `v1.2.0-rc1` and is published as a prerelease.
+
+Automatic builds do **not** create tags. A push to the live branch rewrites a single `continuous`
+prerelease, so there is always one stable link to the latest build and no tags pile up. A real
+release is created by pushing a `v*` tag by hand.
+
+The version that a board reports is the same tag: `sysele-info` prints it on the `BSP` line, and it
+is the first thing to ask for in a support request.
+
+### Licence
+
+MIT, granted by System Electronics BU System Ceramics S.p.a. See `LICENSE`.
+
+
 ## QUICKSTART
 
 ### What You Need
@@ -787,7 +862,10 @@ This documentation is regularly updated. Check the GitHub repository for the lat
 
 ---
 
-*Copyright © 2025 System Electronics. All rights reserved.*
+*Copyright © 2025-2026 System Electronics BU System Ceramics S.p.a.*
+*System Electronics, a Coesia brand.*
+*Released under the MIT License, see [LICENSE](LICENSE).*
 
-*This document contains proprietary information. Reproduction or distribution without written permission is prohibited.*
+*The Hailo software this layer builds against is covered by its own licence terms, which are not
+affected by the above.*
 
