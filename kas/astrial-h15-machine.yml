@@ -20,6 +20,14 @@ local_conf_header:
     INHERIT += "create-spdx"
     SPDX_PRETTY = "1"
 
+    # do_create_spdx reads the licence texts along LICENSE_PATH, but LICENSE_PATH is not part of
+    # the task signature, so adding a licence text does not invalidate the cached result. That
+    # matters because a licence it cannot find is reported with bb.error, which only logs: the
+    # task still finishes, still writes a document with "extractedText": null, and still goes
+    # into sstate. Every later build then restores that empty document and reports no error at
+    # all, so a pipeline with a warm cache publishes a silently incomplete SBOM.
+    do_create_spdx[vardeps] += "LICENSE_PATH"
+
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
     # SYSELE_BSP_VERSION on a tagged build; a local build honestly says "unreleased".
