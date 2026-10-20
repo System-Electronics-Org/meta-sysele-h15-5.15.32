@@ -1,6 +1,14 @@
 header:
   version: 11
 
+# kas costruisce un ambiente controllato e scarta le variabili della shell che non sono
+# dichiarate qui. Il valore indicato e' il difetto: se la shell esporta la variabile, vince
+# quello della shell. Senza questa sezione, SYSELE_SBOM e SYSELE_BSP_VERSION non arrivano
+# a bitbake, e un INHERIT condizionato al loro valore non scatta mai, in silenzio.
+env:
+  SYSELE_SBOM: "none"
+  SYSELE_BSP_VERSION: "unreleased"
+
 machine: astrial-h15
 
 local_conf_header:
@@ -25,7 +33,7 @@ local_conf_header:
     # Nota su cosa NON e' qui: gli externalRefs (CPE e purl), cioe' le chiavi con cui un
     # analizzatore trova i CVE, non sono un interruttore. Si ottengono dichiarando
     # CVE_PRODUCT nelle singole ricette, una per una.
-    SYSELE_SBOM ?= "${@os.environ.get('SYSELE_SBOM', 'none')}"
+    SYSELE_SBOM ??= "none"
 
     INHERIT += "${@bb.utils.contains_any('SYSELE_SBOM', 'standard full', 'create-spdx cve-check', '', d)}"
     SPDX_PRETTY = "1"
@@ -38,7 +46,7 @@ local_conf_header:
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
     # SYSELE_BSP_VERSION on a tagged build; a local build honestly says "unreleased".
-    SYSELE_BSP_VERSION ?= "${@os.environ.get('SYSELE_BSP_VERSION', 'unreleased')}"
+    SYSELE_BSP_VERSION ??= "unreleased"
 
   wget_workaround: |
     # Workaround for fetch failures with wget's default user-agent.

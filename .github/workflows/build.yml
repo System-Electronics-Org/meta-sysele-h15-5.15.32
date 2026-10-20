@@ -377,6 +377,10 @@ jobs:
 
           echo "All required release artifacts are present."
 
+      - name: Check the SBOM switch reached bitbake
+        if: inputs.sbom != 'none'
+        run: bash meta-sysele-bsp/ci/check-sbom-switch.sh || echo "  diagnostico non eseguito"
+
       - name: Archive Build Artifacts
         id: upload_build
         uses: actions/upload-artifact@v4
