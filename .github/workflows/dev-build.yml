@@ -19,6 +19,15 @@ on:
         type: string
         required: false
         default: ''
+      sbom:
+        description: "none (come sempre); standard = SPDX + cve-check. Attenzione: a cache calda i documenti SPDX arrivano da sstate e non vengono rigenerati, il controllo vero lo fa la build di tag."
+        type: choice
+        required: false
+        default: 'none'
+        options:
+          - none
+          - standard
+          - full
 
 jobs:
   build:
@@ -29,4 +38,5 @@ jobs:
       release: none
       use_cache: true
       ref: ${{ inputs.ref }}
+      sbom: ${{ inputs.sbom }}
     secrets: inherit

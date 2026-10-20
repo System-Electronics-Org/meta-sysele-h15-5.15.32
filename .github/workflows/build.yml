@@ -22,6 +22,10 @@ on:
         description: "Se true usa GitHub Actions Cache per sstate-cache + downloads (build dev)."
         type: boolean
         default: false
+      sbom:
+        description: "none = niente; standard = SPDX + cve-check (build di tag); full = anche i checksum, su richiesta cliente."
+        type: string
+        default: 'none'
       ref:
         description: "Branch/commit da compilare. Vuoto = ref che ha innescato il workflow."
         type: string
@@ -178,6 +182,7 @@ jobs:
           if [ "${{ inputs.release }}" = "tagged" ]; then
             export SYSELE_BSP_VERSION="${{ github.ref_name }}"
           fi
+          export SYSELE_SBOM="${{ inputs.sbom }}"
 
           # CI-specific build optimizations - reduce log verbosity
           export BITBAKE_UI_OPTS="-k"
@@ -186,7 +191,7 @@ jobs:
           export BB_DEFAULT_TASK="build"
           export GITHUB_ACTIONS_BUILD=1  # Flag to detect CI environment
 
-          export BB_ENV_PASSTHROUGH_ADDITIONS="SYSELE_BSP_VERSION GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
+          export BB_ENV_PASSTHROUGH_ADDITIONS="SYSELE_SBOM SYSELE_BSP_VERSION GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
 
           # Build using KAS with our Astrial H15 configuration
           set -e  # Exit on any error
@@ -391,6 +396,10 @@ jobs:
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/customer_certificate.bin
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-tfa.itb
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.json
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.index.json
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.tar.zst
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*cve-summary.json
             meta-sysele-bsp/scripts/
           if-no-files-found: error
 

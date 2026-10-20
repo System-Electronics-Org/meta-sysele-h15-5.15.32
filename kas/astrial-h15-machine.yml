@@ -12,6 +12,29 @@ local_conf_header:
     MACHINE_FEATURES:append = " imx334"
     MACHINE_FEATURES:remove = " imx678"
 
+  sbom: |
+    # Distinta dei componenti (SBOM) e controllo CVE. Tre livelli, scelti dal workflow
+    # con la variabile d'ambiente SYSELE_SBOM. Senza la variabile vale "none", quindi
+    # una build che non la passa si comporta esattamente come prima.
+    #
+    #   none      niente. E' il valore di partenza.
+    #   standard  SPDX della distinta piu' cve-check. E' il livello delle build di tag.
+    #   full      in piu' archivia i file dei pacchetti, da cui i checksum. Pesa molto
+    #             di piu', si accende su richiesta di un cliente che li pretende.
+    #
+    # Nota su cosa NON e' qui: gli externalRefs (CPE e purl), cioe' le chiavi con cui un
+    # analizzatore trova i CVE, non sono un interruttore. Si ottengono dichiarando
+    # CVE_PRODUCT nelle singole ricette, una per una.
+    SYSELE_SBOM ?= "${@os.environ.get('SYSELE_SBOM', 'none')}"
+
+    INHERIT += "${@bb.utils.contains_any('SYSELE_SBOM', 'standard full', 'create-spdx cve-check', '', d)}"
+    SPDX_PRETTY = "1"
+    SPDX_ARCHIVE_PACKAGED = "${@bb.utils.contains('SYSELE_SBOM', 'full', '1', '0', d)}"
+
+    # Il cve-check non deve far fallire la build: segnala e basta. Il giudizio su cosa
+    # sia accettabile lo da' VulnScout a valle, con le sue condizioni.
+    CVE_CHECK_REPORT_PATCHED = "1"
+
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
     # SYSELE_BSP_VERSION on a tagged build; a local build honestly says "unreleased".
