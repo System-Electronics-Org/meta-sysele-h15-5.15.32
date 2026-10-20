@@ -408,7 +408,6 @@ jobs:
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.json
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.index.json
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.tar.zst
-            meta-hailo-soc/build/tmp/deploy/spdx/
             meta-sysele-bsp/scripts/
           if-no-files-found: error
 
