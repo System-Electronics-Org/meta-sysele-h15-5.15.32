@@ -12,6 +12,14 @@ local_conf_header:
     MACHINE_FEATURES:append = " imx334"
     MACHINE_FEATURES:remove = " imx678"
 
+  sbom: |
+    # SPDX SBOM for the image. Measurement branch: this is on unconditionally here, to find
+    # out what it costs in build time and in output size before deciding where it belongs.
+    # poky 4.0.35 emits SPDX 2.2 and already combines the per-recipe documents at rootfs time
+    # into <image>.spdx.tar.zst plus an .spdx.index.json, so no merging script is needed.
+    INHERIT += "create-spdx"
+    SPDX_PRETTY = "1"
+
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
     # SYSELE_BSP_VERSION on a tagged build; a local build honestly says "unreleased".

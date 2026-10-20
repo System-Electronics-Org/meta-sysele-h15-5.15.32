@@ -391,6 +391,9 @@ jobs:
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-initial-env
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/customer_certificate.bin
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/u-boot-tfa.itb
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.json
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.index.json
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.tar.zst
             meta-sysele-bsp/scripts/
           if-no-files-found: error
 
