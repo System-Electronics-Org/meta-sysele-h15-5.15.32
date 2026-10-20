@@ -383,21 +383,6 @@ jobs:
             echo "  $d: $n file"
           done
           du -sh meta-hailo-soc/build/tmp/deploy/spdx/ 2>/dev/null || echo "  deploy/spdx assente"
-          echo "### LICENSE_PATH come lo vede bitbake"
-          (cd meta-hailo-soc && kas shell astrial-h15-ci.yml -c \
-             "bitbake -e video-encoder" 2>/dev/null | grep -E '^LICENSE_PATH=' ) || echo "  non leggibile"
-          echo "### forzo create_spdx su video-encoder e guardo il testo"
-          (cd meta-hailo-soc && kas shell astrial-h15-ci.yml -c \
-             "bitbake -f -c create_spdx video-encoder" 2>&1 | tail -5 ) || echo "  forzatura fallita"
-          python3 -c "
-import json,glob
-for f in glob.glob('meta-hailo-soc/build/tmp/deploy/spdx/astrial-h15/recipes/recipe-video-encoder.spdx.json'):
-    d=json.load(open(f))
-    for e in d.get('hasExtractedLicensingInfos',[]):
-        t=e.get('extractedText')
-        print('  ',e['licenseId'],'->', (str(len(t))+' caratteri') if t else 'NULLO')
-        if t: print('   primo rigo:', [l for l in t.split(chr(10)) if l.strip()][0][:70])
-" || echo "  documento non leggibile"
           echo "### qualunque .spdx. sotto deploy/"
           find meta-hailo-soc/build/tmp/deploy -name '*spdx*' -maxdepth 3 2>/dev/null | head -20
 
