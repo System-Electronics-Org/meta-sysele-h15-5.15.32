@@ -372,6 +372,20 @@ jobs:
 
           echo "All required release artifacts are present."
 
+      - name: Look for the SPDX output
+        if: always()
+        run: |
+          echo "### deploy/images: file SPDX"
+          ls -l meta-hailo-soc/build/tmp/deploy/images/astrial-h15/ 2>/dev/null | grep -i spdx || echo "  nessuno"
+          echo "### deploy/spdx: documenti per ricetta"
+          for d in recipes packages runtime; do
+            n=$(ls meta-hailo-soc/build/tmp/deploy/spdx/astrial-h15/$d/ 2>/dev/null | wc -l)
+            echo "  $d: $n file"
+          done
+          du -sh meta-hailo-soc/build/tmp/deploy/spdx/ 2>/dev/null || echo "  deploy/spdx assente"
+          echo "### qualunque .spdx. sotto deploy/"
+          find meta-hailo-soc/build/tmp/deploy -name '*spdx*' -maxdepth 3 2>/dev/null | head -20
+
       - name: Archive Build Artifacts
         id: upload_build
         uses: actions/upload-artifact@v4
@@ -394,6 +408,7 @@ jobs:
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.json
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.index.json
             meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.tar.zst
+            meta-hailo-soc/build/tmp/deploy/spdx/
             meta-sysele-bsp/scripts/
           if-no-files-found: error
 
