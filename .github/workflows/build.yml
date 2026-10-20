@@ -383,6 +383,7 @@ jobs:
             echo "  $d: $n file"
           done
           du -sh meta-hailo-soc/build/tmp/deploy/spdx/ 2>/dev/null || echo "  deploy/spdx assente"
+          bash meta-sysele-bsp/ci/check-spdx-licences.sh || echo "  diagnostico licenze non eseguito"
           echo "### qualunque .spdx. sotto deploy/"
           find meta-hailo-soc/build/tmp/deploy -name '*spdx*' -maxdepth 3 2>/dev/null | head -20
 
