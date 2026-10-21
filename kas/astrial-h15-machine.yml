@@ -39,9 +39,19 @@ local_conf_header:
     SPDX_PRETTY = "1"
     SPDX_ARCHIVE_PACKAGED = "${@bb.utils.contains('SYSELE_SBOM', 'full', '1', '0', d)}"
 
-    # Il cve-check non deve far fallire la build: segnala e basta. Il giudizio su cosa
-    # sia accettabile lo da' VulnScout a valle, con le sue condizioni.
+    # Il report tiene anche i CVE gia' chiusi da una patch: sono l'informazione che fa
+    # sgonfiare i falsi positivi a valle, perche' un analizzatore che guarda solo nome e
+    # versione li segnala comunque come aperti.
     CVE_CHECK_REPORT_PATCHED = "1"
+
+    # Niente avvisi in console. cve-check ne stampa uno per ricetta con TUTTI i CVE non
+    # corretti concatenati su una riga sola (cve-check.bbclass riga 466): per il kernel
+    # sono oltre 21000 identificatori, e una riga cosi' lunga fa morire kas, che legge
+    # l'output di bitbake con uno stream asyncio che ha un limite di riga:
+    #   asyncio.exceptions.LimitOverrunError: Separator is found, but chunk is longer than limit
+    # Bitbake finisce bene, e' kas a cadere. Il JSON, che e' quello che usiamo, viene
+    # scritto lo stesso.
+    CVE_CHECK_SHOW_WARNINGS = "0"
 
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
