@@ -195,6 +195,8 @@ jobs:
             export SYSELE_BSP_VERSION="${{ github.ref_name }}"
           fi
           export SYSELE_SBOM="${{ inputs.sbom }}"
+          # Serve se la cache nvd-db e' vuota e il database va scaricato.
+          export NVD_API_KEY="${{ secrets.NVD_API_KEY }}"
 
           # CI-specific build optimizations - reduce log verbosity
           export BITBAKE_UI_OPTS="-k"
@@ -203,7 +205,7 @@ jobs:
           export BB_DEFAULT_TASK="build"
           export GITHUB_ACTIONS_BUILD=1  # Flag to detect CI environment
 
-          export BB_ENV_PASSTHROUGH_ADDITIONS="SYSELE_SBOM SYSELE_BSP_VERSION GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
+          export BB_ENV_PASSTHROUGH_ADDITIONS="NVD_API_KEY SYSELE_SBOM SYSELE_BSP_VERSION GITHUB_SHA GITHUB_REPOSITORY GITHUB_RUN_ID BB_ISOLATE_NETWORK BB_NO_NETWORK BITBAKE_UI_OPTS BB_LOGCONFIG BB_CONSOLELOG BB_DEFAULT_TASK GITHUB_ACTIONS_BUILD"
 
           # Build using KAS with our Astrial H15 configuration
           set -e  # Exit on any error

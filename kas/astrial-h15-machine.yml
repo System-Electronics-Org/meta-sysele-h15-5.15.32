@@ -6,6 +6,7 @@ header:
 env:
   SYSELE_SBOM: "none"
   SYSELE_BSP_VERSION: "unreleased"
+  NVD_API_KEY: ""
 
 machine: astrial-h15
 
@@ -52,6 +53,11 @@ local_conf_header:
     # Il database NVD sta in un posto fisso, fuori da DL_DIR, che si sposta fra dev
     # build e release. Serve per poterlo cachare con una chiave sola.
     CVE_CHECK_DB_DLDIR_FILE = "${TOPDIR}/../../yocto-cache/CVE_CHECK/${CVE_CHECK_DB_FILENAME}"
+
+    # La chiave del NIST. La ricetta la legge come NVDCVE_API_KEY, mentre l'ambiente e il
+    # secret si chiamano NVD_API_KEY: qui si fa il ponte. Con la chiave l'attesa fra le
+    # pagine scende da 6 a 2 secondi, e sono oltre 200 pagine.
+    NVDCVE_API_KEY ??= "${NVD_API_KEY}"
 
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
