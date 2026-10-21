@@ -72,6 +72,25 @@ local_conf_header:
     CVE_CHECK_SKIP_RECIPE:append:class-crosssdk = " ${PN}"
     CVE_CHECK_SKIP_RECIPE:append:class-cross-canadian = " ${PN}"
 
+    # Il referto CVE non deve poter far cadere una release. Il database NVD si scarica
+    # dalle API del NIST, che sono fuori dal nostro controllo: sulla v1.2.1 il download
+    # ci ha messo 54 minuti e poi e' fallito, portandosi via anche la distinta, che non
+    # dipende dalla rete. Da qui in poi un problema del NIST lascia la release senza
+    # referto CVE, non senza release.
+    #
+    # Nota su come fallisce davvero: do_fetch registra "CVE database update failed" ma
+    # esce Succeeded, ed e' do_unpack a morire subito dopo su un file che non c'e'. Per
+    # questo l'intervento sta su entrambi i task.
+    # La correzione vera e' un bbappend su cve-update-nvd2-native, vedi
+    # recipes-core/meta/cve-update-nvd2-native.bbappend.
+
+    # Il database NVD vive in un posto fisso, fuori da DL_DIR. Serve perche' DL_DIR si
+    # sposta: con astrial-h15-cache.yml (dev build) sta in yocto-cache/downloads, senza
+    # (release) sta in build/downloads. Un database che cambia posto a seconda del tipo
+    # di build non e' cachabile con una chiave sola, ed e' una release che paga il
+    # download. Qui sta sempre nello stesso punto, cachabile da entrambe.
+    CVE_CHECK_DB_DLDIR_FILE = "${TOPDIR}/../../yocto-cache/CVE_CHECK/${CVE_CHECK_DB_FILENAME}"
+
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
     # SYSELE_BSP_VERSION on a tagged build; a local build honestly says "unreleased".
