@@ -8,7 +8,7 @@
 #                                   l'elenco esatto del buildhistory (tipo Deployed)
 #
 # Fallisce se Yocto non ha prodotto l'archivio: una build che chiede la SBOM e non la
-# ottiene deve dirlo, non uscire verde a mani vuote. E' gia' successo.
+# ottiene deve dirlo, non uscire verde a mani vuote.
 set -euo pipefail
 
 B=meta-hailo-soc/build

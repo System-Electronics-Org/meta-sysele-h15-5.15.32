@@ -171,11 +171,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.YOCTO_CACHE_ROOT }}/CVE_CHECK
-          # Cache a se', indipendente da use_cache. Una build di release gira pulita
-          # (use_cache: false) e quindi non ripristina sstate, ma il database NVD non e'
-          # un risultato di compilazione: e' un dato esterno che non ha senso riscaricare.
-          # Senza, cve-update-nvd2-native va a prenderlo dalle API del NIST e la v1.2.1 ci
-          # ha passato 54 minuti prima di fallire.
+          # Cache a se', indipendente da use_cache: il database NVD non e' un
+          # risultato di compilazione, e una release pulita non deve riscaricarlo.
           key: nvd-db-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
             nvd-db-${{ runner.os }}-
