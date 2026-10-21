@@ -53,6 +53,25 @@ local_conf_header:
     # scritto lo stesso.
     CVE_CHECK_SHOW_WARNINGS = "0"
 
+    # Niente CVE per gli strumenti dell'host. cve-check gira su tutte le ricette, comprese
+    # le -native e le -cross, che vivono sulla macchina che compila e non finiscono sulla
+    # scheda: sulla nostra immagine sono 199 ricette e 3160 CVE, il 13% del report, di
+    # software che sul prodotto non c'e'.
+    #
+    # cve-check legge CVE_CHECK_SKIP_RECIPE dal datastore DELLA RICETTA e controlla se il
+    # suo pn e' nell'elenco (cve-check.bbclass riga 278). Quindi un override di classe che
+    # ci mette ${PN} fa sì che ogni ricetta di quella classe escluda se stessa, senza
+    # doverle elencare a mano una per una.
+    #
+    # Nota: questo toglie i CVE degli strumenti di build, non i pacchetti dalla SBOM. La
+    # distinta Build continua a elencarli, com'e' giusto per quel tipo. Se un giorno
+    # servisse analizzare la sicurezza della catena di build, si spegne questo blocco.
+    CVE_CHECK_SKIP_RECIPE:append:class-native = " ${PN}"
+    CVE_CHECK_SKIP_RECIPE:append:class-nativesdk = " ${PN}"
+    CVE_CHECK_SKIP_RECIPE:append:class-cross = " ${PN}"
+    CVE_CHECK_SKIP_RECIPE:append:class-crosssdk = " ${PN}"
+    CVE_CHECK_SKIP_RECIPE:append:class-cross-canadian = " ${PN}"
+
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
     # SYSELE_BSP_VERSION on a tagged build; a local build honestly says "unreleased".
