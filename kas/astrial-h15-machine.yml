@@ -59,6 +59,12 @@ local_conf_header:
     # pagine scende da 6 a 2 secondi, e sono oltre 200 pagine.
     NVDCVE_API_KEY ??= "${NVD_API_KEY}"
 
+    # Il NIST ogni tanto chiude la connessione a meta' di una pagina (IncompleteRead).
+    # Con un database gia' presente l'aggiornamento e' incrementale e tocca poche
+    # pagine, ma il primo scaricamento completo ne fa oltre duecento: cinque tentativi
+    # per pagina non bastano.
+    CVE_DB_UPDATE_ATTEMPTS = "20"
+
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
     # SYSELE_BSP_VERSION on a tagged build; a local build honestly says "unreleased".
