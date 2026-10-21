@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Produce UNA SBOM SPDX 2.2 di tipo dichiarato, dall'output multi-documento di Yocto.
 
-Si chiamava make_sbom.py. Il nome e' cambiato perche' descriveva la meccanica invece
+Si chiamava merge_spdx.py. Il nome e' cambiato perche' descriveva la meccanica invece
 del risultato: la fusione e' il mezzo, non lo scopo. VulnScout l'archivio di Yocto se lo
 scompatta da solo, quindi fondere non serve a lui; serve ad avere un file unico, con un
 TIPO dichiarato e il filtro giusto applicato, da dare a un cliente o a un altro strumento.
