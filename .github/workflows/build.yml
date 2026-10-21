@@ -165,6 +165,18 @@ jobs:
           restore-keys: |
             yocto-cache-${{ runner.os }}-
 
+      - name: Restore the CVE database
+        id: cve_db
+        if: inputs.sbom != 'none'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.YOCTO_CACHE_ROOT }}/CVE_CHECK
+          # Cache a se', indipendente da use_cache: il database NVD non e' un
+          # risultato di compilazione, e una release pulita non deve riscaricarlo.
+          key: nvd-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            nvd-db-${{ runner.os }}-
+
       - name: Build Yocto Image with KAS
         run: |
           cd meta-hailo-soc
@@ -314,6 +326,14 @@ jobs:
             ${{ env.YOCTO_CACHE_ROOT }}/sstate-cache
             ${{ env.YOCTO_CACHE_ROOT }}/downloads
           key: yocto-cache-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Save the CVE database
+        if: always() && inputs.sbom != 'none'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.YOCTO_CACHE_ROOT }}/CVE_CHECK
+          key: nvd-db-${{ runner.os }}-${{ github.run_id }}
+        continue-on-error: true
 
       - name: Clean Sensitive Files Before Archiving
         run: |

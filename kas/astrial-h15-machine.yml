@@ -1,10 +1,8 @@
 header:
   version: 11
 
-# kas costruisce un ambiente controllato e scarta le variabili della shell che non sono
-# dichiarate qui. Il valore indicato e' il difetto: se la shell esporta la variabile, vince
-# quello della shell. Senza questa sezione, SYSELE_SBOM e SYSELE_BSP_VERSION non arrivano
-# a bitbake, e un INHERIT condizionato al loro valore non scatta mai, in silenzio.
+# kas scarta le variabili della shell non dichiarate qui. Il valore e' il difetto,
+# quello della shell vince.
 env:
   SYSELE_SBOM: "none"
   SYSELE_BSP_VERSION: "unreleased"
@@ -21,56 +19,39 @@ local_conf_header:
     MACHINE_FEATURES:remove = " imx678"
 
   sbom: |
-    # Distinta dei componenti (SBOM) e controllo CVE. Tre livelli, scelti dal workflow
-    # con la variabile d'ambiente SYSELE_SBOM. Senza la variabile vale "none", quindi
-    # una build che non la passa si comporta esattamente come prima.
-    #
-    #   none      niente. E' il valore di partenza.
-    #   standard  SPDX della distinta piu' cve-check. E' il livello delle build di tag.
-    #   full      in piu' archivia i file dei pacchetti, da cui i checksum. Pesa molto
-    #             di piu', si accende su richiesta di un cliente che li pretende.
-    #
-    # Nota su cosa NON e' qui: gli externalRefs (CPE e purl), cioe' le chiavi con cui un
-    # analizzatore trova i CVE, non sono un interruttore. Si ottengono dichiarando
-    # CVE_PRODUCT nelle singole ricette, una per una.
+    # Distinta dei componenti e controllo CVE. Livelli: none, standard (build di tag),
+    # full (aggiunge i checksum, pesa molto).
+    # Gli externalRefs (CPE) non sono qui: si dichiarano con CVE_PRODUCT nelle ricette.
     SYSELE_SBOM ??= "none"
 
     INHERIT += "${@bb.utils.contains_any('SYSELE_SBOM', 'standard full', 'create-spdx cve-check', '', d)}"
     SPDX_PRETTY = "1"
     SPDX_ARCHIVE_PACKAGED = "${@bb.utils.contains('SYSELE_SBOM', 'full', '1', '0', d)}"
 
-    # Il report tiene anche i CVE gia' chiusi da una patch: sono l'informazione che fa
-    # sgonfiare i falsi positivi a valle, perche' un analizzatore che guarda solo nome e
-    # versione li segnala comunque come aperti.
+    # Tiene nel referto anche i CVE chiusi da una patch: senza, un analizzatore che
+    # guarda nome e versione li segnala come aperti.
     CVE_CHECK_REPORT_PATCHED = "1"
 
-    # Niente avvisi in console. cve-check ne stampa uno per ricetta con TUTTI i CVE non
-    # corretti concatenati su una riga sola (cve-check.bbclass riga 466): per il kernel
-    # sono oltre 21000 identificatori, e una riga cosi' lunga fa morire kas, che legge
-    # l'output di bitbake con uno stream asyncio che ha un limite di riga:
-    #   asyncio.exceptions.LimitOverrunError: Separator is found, but chunk is longer than limit
-    # Bitbake finisce bene, e' kas a cadere. Il JSON, che e' quello che usiamo, viene
-    # scritto lo stesso.
+    # cve-check stampa un avviso per ricetta con tutti i CVE aperti su una riga sola.
+    # Per il kernel sono decine di migliaia di caratteri e kas, che legge l'output con
+    # uno stream asyncio a righe limitate, muore. Il JSON resta.
     CVE_CHECK_SHOW_WARNINGS = "0"
 
-    # Niente CVE per gli strumenti dell'host. cve-check gira su tutte le ricette, comprese
-    # le -native e le -cross, che vivono sulla macchina che compila e non finiscono sulla
-    # scheda: sulla nostra immagine sono 199 ricette e 3160 CVE, il 13% del report, di
-    # software che sul prodotto non c'e'.
-    #
-    # cve-check legge CVE_CHECK_SKIP_RECIPE dal datastore DELLA RICETTA e controlla se il
-    # suo pn e' nell'elenco (cve-check.bbclass riga 278). Quindi un override di classe che
-    # ci mette ${PN} fa sì che ogni ricetta di quella classe escluda se stessa, senza
-    # doverle elencare a mano una per una.
-    #
-    # Nota: questo toglie i CVE degli strumenti di build, non i pacchetti dalla SBOM. La
-    # distinta Build continua a elencarli, com'e' giusto per quel tipo. Se un giorno
-    # servisse analizzare la sicurezza della catena di build, si spegne questo blocco.
+    # Niente CVE per gli strumenti di build. cve-check legge CVE_CHECK_SKIP_RECIPE dal
+    # datastore della ricetta, quindi un override di classe con ${PN} fa sì che ogni
+    # ricetta di quella classe escluda se stessa. Restringe il referto, non la distinta.
     CVE_CHECK_SKIP_RECIPE:append:class-native = " ${PN}"
     CVE_CHECK_SKIP_RECIPE:append:class-nativesdk = " ${PN}"
     CVE_CHECK_SKIP_RECIPE:append:class-cross = " ${PN}"
     CVE_CHECK_SKIP_RECIPE:append:class-crosssdk = " ${PN}"
     CVE_CHECK_SKIP_RECIPE:append:class-cross-canadian = " ${PN}"
+
+    # Un guasto del NIST non deve far cadere la release: vedi il bbappend su
+    # cve-update-nvd2-native.
+    #
+    # Il database NVD sta in un posto fisso, fuori da DL_DIR, che si sposta fra dev
+    # build e release. Serve per poterlo cachare con una chiave sola.
+    CVE_CHECK_DB_DLDIR_FILE = "${TOPDIR}/../../yocto-cache/CVE_CHECK/${CVE_CHECK_DB_FILENAME}"
 
   bsp_version: |
     # Readable BSP version shown on the board by sysele-info. The CI exports
