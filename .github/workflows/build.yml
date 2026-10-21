@@ -379,6 +379,10 @@ jobs:
 
       - name: Check the SBOM switch reached bitbake
         if: inputs.sbom != 'none'
+        env:
+          # Ogni step ha la sua shell: senza questo, lo script misurerebbe il proprio
+          # ambiente vuoto invece di quello della build, e direbbe sempre "none".
+          SYSELE_SBOM: ${{ inputs.sbom }}
         run: bash meta-sysele-bsp/ci/check-sbom-switch.sh || echo "  diagnostico non eseguito"
 
       - name: Archive Build Artifacts
