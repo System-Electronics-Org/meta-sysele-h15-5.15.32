@@ -377,13 +377,9 @@ jobs:
 
           echo "All required release artifacts are present."
 
-      - name: Check the SBOM switch reached bitbake
+      - name: Build the SBOMs
         if: inputs.sbom != 'none'
-        env:
-          # Ogni step ha la sua shell: senza questo, lo script misurerebbe il proprio
-          # ambiente vuoto invece di quello della build, e direbbe sempre "none".
-          SYSELE_SBOM: ${{ inputs.sbom }}
-        run: bash meta-sysele-bsp/ci/check-sbom-switch.sh || echo "  diagnostico non eseguito"
+        run: bash meta-sysele-bsp/ci/build-sboms.sh
 
       - name: Archive Build Artifacts
         id: upload_build
@@ -412,6 +408,19 @@ jobs:
             meta-sysele-bsp/scripts/
           if-no-files-found: error
 
+      - name: Archive SBOMs
+        id: upload_sbom
+        if: inputs.sbom != 'none'
+        uses: actions/upload-artifact@v4
+        with:
+          name: astrial-h15-sbom
+          path: |
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15-build.spdx.json
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/core-image-hailo-dev-astrial-h15-deployed.spdx.json
+            meta-hailo-soc/build/tmp/deploy/images/astrial-h15/*.spdx.tar.zst
+            meta-hailo-soc/build/tmp/log/cve/cve-summary.json
+          if-no-files-found: error
+
       - name: Archive Build Logs
         id: upload_logs
         uses: actions/upload-artifact@v4
@@ -432,9 +441,11 @@ jobs:
         env:
           BUILD_URL: ${{ steps.upload_build.outputs.artifact-url }}
           LOGS_URL: ${{ steps.upload_logs.outputs.artifact-url }}
+          SBOM_URL: ${{ steps.upload_sbom.outputs.artifact-url }}
         run: |
           echo "Image and flashing files: ${BUILD_URL:-not produced, the build did not get that far}"
           echo "Build logs:               ${LOGS_URL:-not produced}"
+          echo "SBOMs and CVE report:     ${SBOM_URL:-not produced, this build did not make one}"
 
       - name: Download Build Artifacts for Release
         if: inputs.release != 'none'
